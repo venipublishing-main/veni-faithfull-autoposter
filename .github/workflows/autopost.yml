@@ -1,19 +1,14 @@
 name: Daily Instagram Auto-Post
 
 on:
-name: Daily Instagram Auto-Post
-
-on:
-  schedule:
-    - cron: "0 8 * * *"
-  workflow_dispatch: {}
-
-permissions:
-  contents: write
   schedule:
     # Run every day at 08:00 UTC (change this later)
     - cron: "0 8 * * *"
   workflow_dispatch: {}
+
+# Give the workflow permission to push commits (images) back to the repo
+permissions:
+  contents: write
 
 jobs:
   post:
@@ -50,8 +45,8 @@ jobs:
 
       - name: Wait for raw URL to become available
         run: |
-          echo "Sleeping 15s so the image is served on raw.githubusercontent.com..."
-          sleep 15
+          echo "Sleeping 30s so the image is served on raw.githubusercontent.com..."
+          sleep 30
 
       - name: Publish to Instagram (create & publish)
         env:
@@ -59,7 +54,7 @@ jobs:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
         run: |
           python - << 'PY'
-          import os, json, time, requests
+          import os, json, time, requests, time as _t
           IG_TOKEN = os.environ['IG_TOKEN']; IG_USER_ID = os.environ['IG_USER_ID']
           with open('post_payload.json', 'r', encoding='utf-8') as f:
               payload = json.load(f)
@@ -68,7 +63,7 @@ jobs:
           r = requests.post(create, data={"image_url": image_url, "caption": caption, "access_token": IG_TOKEN}, timeout=30)
           print("Create status:", r.status_code, r.text); r.raise_for_status()
           creation_id = r.json()['id']
-          time.sleep(5)
+          _t.sleep(5)
           publish = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media_publish"
           r2 = requests.post(publish, data={"creation_id": creation_id, "access_token": IG_TOKEN}, timeout=30)
           print("Publish status:", r2.status_code, r2.text); r2.raise_for_status()
