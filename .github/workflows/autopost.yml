@@ -1,6 +1,15 @@
 name: Daily Instagram Auto-Post
 
 on:
+name: Daily Instagram Auto-Post
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
   schedule:
     # Run every day at 08:00 UTC (change this later)
     - cron: "0 8 * * *"
