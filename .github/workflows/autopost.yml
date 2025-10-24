@@ -6,13 +6,19 @@ on:
     - cron: "0 8 * * *"
   workflow_dispatch: {}
 
-# Give the workflow permission to push commits (images) back to the repo
 permissions:
   contents: write
 
 jobs:
   post:
     runs-on: ubuntu-latest
+
+    # Make secrets available to all steps
+    env:
+      IG_TOKEN: ${{ secrets.IG_TOKEN }}
+      IG_USER_ID: ${{ secrets.IG_USER_ID }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
 
     steps:
       - name: Checkout
@@ -23,55 +29,32 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install deps
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pillow requests
-- name: Setup Python
-  uses: actions/setup-python@v5
-  with:
-    python-version: "3.11"
 
-- name: Install dependencies
-  run: |
-    python -m pip install --upgrade pip
-    pip install pillow requests
-
-- name: Validate Hugging Face token
-  env:
-    HF_TOKEN: ${{ secrets.HF_TOKEN }}
-  run: |
-    python - << 'PY'
-    import os, requests, sys
-    tok = os.environ.get("HF_TOKEN")
-    if not tok:
-        print("HF_TOKEN not present in env"); sys.exit(1)
-    url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
-    r = requests.post(url, headers={"Authorization": f"Bearer {tok}"}, json={"inputs": "ping"}, timeout=30)
-    print("Status:", r.status_code)
-    if r.status_code == 401:
-        print("HF 401 Unauthorized — token wrong/expired/scope missing")
-        sys.exit(1)
-    elif r.status_code >= 400:
-        print("HF error:", r.text[:500])
-        sys.exit(1)
-    else:
-        print("HF token looks good.")
-    PY
-
-- name: Generate image & caption payload
-  env:
-    IG_TOKEN: ${{ secrets.IG_TOKEN }}
-    IG_USER_ID: ${{ secrets.IG_USER_ID }}
-    HF_TOKEN: ${{ secrets.HF_TOKEN }}
-    STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
-  run: |
-    python post.py
+      - name: Validate Hugging Face token
+        run: |
+          python - << 'PY'
+          import os, requests, sys
+          tok = os.environ.get("HF_TOKEN")
+          if not tok:
+              print("HF_TOKEN not present in env"); sys.exit(1)
+          url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+          r = requests.post(url, headers={"Authorization": f"Bearer {tok}"}, json={"inputs": "ping"}, timeout=30)
+          print("Status:", r.status_code)
+          if r.status_code == 401:
+              print("HF 401 Unauthorized — token wrong/expired/scope missing")
+              sys.exit(1)
+          elif r.status_code >= 400:
+              print("HF error:", r.text[:500])
+              sys.exit(1)
+          else:
+              print("HF token looks good.")
+          PY
 
       - name: Generate image & caption payload
-        env:
-          IG_TOKEN: ${{ secrets.IG_TOKEN }}
-          IG_USER_ID: ${{ secrets.IG_USER_ID }}
         run: |
           python post.py
 
@@ -89,22 +72,36 @@ jobs:
           sleep 30
 
       - name: Publish to Instagram (create & publish)
-        env:
-          IG_TOKEN: ${{ secrets.IG_TOKEN }}
-          IG_USER_ID: ${{ secrets.IG_USER_ID }}
         run: |
           python - << 'PY'
-          import os, json, time, requests, time as _t
-          IG_TOKEN = os.environ['IG_TOKEN']; IG_USER_ID = os.environ['IG_USER_ID']
+          import os, json, time, requests
+          IG_TOKEN = os.environ['IG_TOKEN']
+          IG_USER_ID = os.environ['IG_USER_ID']
+
           with open('post_payload.json', 'r', encoding='utf-8') as f:
               payload = json.load(f)
-          image_url = payload['image_url']; caption = payload['caption']
-          create = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media"
-          r = requests.post(create, data={"image_url": image_url, "caption": caption, "access_token": IG_TOKEN}, timeout=30)
-          print("Create status:", r.status_code, r.text); r.raise_for_status()
+
+          image_url = payload['image_url']
+          caption = payload['caption']
+
+          # Step 1: Create container
+          create_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media"
+          r = requests.post(create_url, data={
+              "image_url": image_url,
+              "caption": caption,
+              "access_token": IG_TOKEN
+          }, timeout=30)
+          print("Create status:", r.status_code, r.text)
+          r.raise_for_status()
           creation_id = r.json()['id']
-          _t.sleep(5)
-          publish = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media_publish"
-          r2 = requests.post(publish, data={"creation_id": creation_id, "access_token": IG_TOKEN}, timeout=30)
-          print("Publish status:", r2.status_code, r2.text); r2.raise_for_status()
+
+          # Step 2: Publish post
+          time.sleep(5)
+          publish_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media_publish"
+          r2 = requests.post(publish_url, data={
+              "creation_id": creation_id,
+              "access_token": IG_TOKEN
+          }, timeout=30)
+          print("Publish status:", r2.status_code, r2.text)
+          r2.raise_for_status()
           PY
