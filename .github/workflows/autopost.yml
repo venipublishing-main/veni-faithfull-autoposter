@@ -2,8 +2,7 @@ name: Daily Instagram Auto-Post
 
 on:
   schedule:
-    # Run every day at 08:00 UTC (change this later)
-    - cron: "0 8 * * *"
+    - cron: "0 8 * * *"   # daily at 08:00 UTC
   workflow_dispatch: {}
 
 permissions:
@@ -13,13 +12,12 @@ jobs:
   post:
     runs-on: ubuntu-latest
 
-    # Make secrets/env available to all steps
+    # Secrets/env available to all steps
     env:
-  IG_TOKEN: ${{ secrets.IG_TOKEN }}
-  IG_USER_ID: ${{ secrets.IG_USER_ID }}
-  STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
-  DEEPAI_KEY: ${{ secrets.DEEPAI_KEY }}
-
+      IG_TOKEN: ${{ secrets.IG_TOKEN }}
+      IG_USER_ID: ${{ secrets.IG_USER_ID }}
+      STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
+      DEEPAI_KEY: ${{ secrets.DEEPAI_KEY }}
 
     steps:
       - name: Checkout
@@ -35,25 +33,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install pillow requests
 
-      - name: Validate Hugging Face token
-        run: |
-          python - << 'PY'
-          import os, requests, sys
-          tok = os.environ.get("HF_TOKEN")
-          model = os.environ.get("HF_MODEL", "HuggingFaceH4/zephyr-7b-beta")
-          if not tok:
-            print("HF_TOKEN not present in env"); sys.exit(1)
-          url = f"https://api-inference.huggingface.co/models/{model}"
-          r = requests.post(url, headers={"Authorization": f"Bearer {tok}"},
-                            json={"inputs": "ping"}, timeout=60)
-          print("Model:", model, "| Status:", r.status_code)
-          if r.status_code == 401:
-            print("HF 401 Unauthorized — token wrong/expired/scope missing"); sys.exit(1)
-          elif r.status_code >= 400:
-            print("HF error:", r.text[:500]); sys.exit(1)
-          else:
-            print("HF token looks good.")
-          PY
+      # (Removed HF validation step)
 
       - name: Generate image & caption payload
         run: |
