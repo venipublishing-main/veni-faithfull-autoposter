@@ -16,51 +16,61 @@ THEME = os.getenv("THEME", "discipline, focus, perseverance")
 TONE  = os.getenv("TONE",  "motivational, concise, modern")
 STYLE = os.getenv("STYLE", "dark minimalist aesthetic, cinematic lighting")
 
-DEEPAI_KEY     = os.getenv("DEEPAI_KEY")
+GEMINI_KEY     = os.getenv("GEMINI_API_KEY")
 STABILITY_KEY  = os.getenv("STABILITY_API_KEY")
 
-if not DEEPAI_KEY:
-    raise RuntimeError("Missing DEEPAI_KEY (DeepAI API key)")
+if not GEMINI_KEY:
+    raise RuntimeError("Missing GEMINI_API_KEY")
 if not STABILITY_KEY:
-    raise RuntimeError("Missing STABILITY_API_KEY (Stability AI key)")
+    raise RuntimeError("Missing STABILITY_API_KEY")
 
 # -----------------------------
-# DEEPAI TEXT GENERATION
+# GEMINI TEXT GENERATION (free tier)
 # -----------------------------
-def deepai_generate(prompt: str) -> str:
-    url = "https://api.deepai.org/api/text-generator"
-    headers = {"api-key": DEEPAI_KEY}
-    r = requests.post(url, data={"text": prompt}, headers=headers, timeout=45)
-    r.raise_for_status()
+# Model name kept as env for easy swaps; default to a Flash model suitable for free tier
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+
+def gemini_generate(prompt: str) -> str:
+    """
+    Calls Gemini's REST API (v1beta generateContent).
+    Docs: https://ai.google.dev
+    """
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.8,
+            "maxOutputTokens": 160
+        }
+    }
+    r = requests.post(url, json=payload, timeout=60)
+    if r.status_code >= 400:
+        raise RuntimeError(f"Gemini error {r.status_code}: {r.text[:300]}")
     data = r.json()
-    out = (data.get("output") or "").strip()
-    if not out:
-        raise RuntimeError(f"DeepAI returned empty output for prompt: {prompt[:80]}...")
-    return out
+    # Extract text
+    try:
+        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except Exception:
+        raise RuntimeError(f"Unexpected Gemini response: {str(data)[:300]}")
 
 def generate_verse_and_reflection():
     # Quote: short, generic (no attribution), fits on image
     quote_prompt = (
-        f"Write one short, powerful quote about {THEME}. "
+        f"Write ONE short, powerful quote about {THEME}. "
         f"It must be generic (no attribution), wrapped in quotation marks, and 16 words or fewer."
     )
-    verse = deepai_generate(quote_prompt)
-    # enforce wrapping quotes if model forgot
+    verse = gemini_generate(quote_prompt)
     if not verse.startswith(("“", "\"")):
         verse = "“" + verse.strip('“"').strip() + "”"
-    # Trim overly long outputs (safety)
     if len(verse.split()) > 16:
-        verse = " ".join(verse.split()[:16])
-        if not verse.endswith("”"):
-            verse = verse.rstrip(".!,;:") + "”"
+        verse = " ".join(verse.split()[:16]).rstrip(".!,;:") + "”"
 
     # Reflection: 1–2 sentences, short, IG-friendly
     reflection_prompt = (
         f"Write a concise 1–2 sentence reflection that expands on this quote for Instagram. "
         f"Tone: {TONE}. <= 40 words. Avoid hashtags.\nQuote: {verse}"
     )
-    reflection = deepai_generate(reflection_prompt)
-    # keep it tight
+    reflection = gemini_generate(reflection_prompt)
     words = reflection.split()
     if len(words) > 40:
         reflection = " ".join(words[:40]).rstrip(".!,;:") + "."
@@ -119,7 +129,7 @@ def draw_centered_text(img, verse, reflection):
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    # 1) Text via DeepAI
+    # 1) Text via Gemini
     verse, reflection = generate_verse_and_reflection()
 
     # 2) Image via Stability
