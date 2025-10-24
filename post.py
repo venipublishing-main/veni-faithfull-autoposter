@@ -32,22 +32,17 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 
 def gemini_generate(prompt: str) -> str:
     """
-    Calls Gemini's REST API (v1beta generateContent).
-    Docs: https://ai.google.dev
+    Calls the new Google GenAI endpoint.
     """
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.8,
-            "maxOutputTokens": 160
-        }
+        "generationConfig": {"temperature": 0.8, "maxOutputTokens": 200}
     }
     r = requests.post(url, json=payload, timeout=60)
     if r.status_code >= 400:
         raise RuntimeError(f"Gemini error {r.status_code}: {r.text[:300]}")
     data = r.json()
-    # Extract text
     try:
         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
     except Exception:
