@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, json, base64, textwrap, re
+import os, json, base64, textwrap, re, time
 from datetime import datetime
 import requests
 from PIL import Image, ImageDraw, ImageFont
@@ -29,7 +29,7 @@ if not STABILITY_KEY:
 # -----------------------------
 # GEMINI
 # -----------------------------
-def _gemini_call(text, max_tokens=160, temperature=0.6):
+def _gemini_call(text, max_tokens=160, temperature=0.55, retries=2):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
     payload = {
         "contents": [{"role": "user", "parts": [{"text": text}]}],
@@ -37,39 +37,37 @@ def _gemini_call(text, max_tokens=160, temperature=0.6):
             "temperature": temperature,
             "maxOutputTokens": max_tokens,
             "responseMimeType": "application/json"
-        },
-        # relax safety to avoid “blocked” for religious content
-        "safetySettings": [
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_SEXUAL_CONTENT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-        ],
+        }
+        # NOTE: safetySettings removed to avoid INVALID_ARGUMENT errors
     }
-    r = requests.post(url, json=payload, timeout=60)
-    if r.status_code >= 400:
-        raise RuntimeError(f"Gemini error {r.status_code}: {r.text[:300]}")
-    data = r.json()
-    # typical path: candidates[0].content.parts[0].text
-    try:
-        parts = data["candidates"][0]["content"].get("parts", [])
-        txt = "".join(p.get("text", "") for p in parts).strip()
-        if not txt:
-            raise KeyError("empty text")
-        return txt
-    except Exception:
-        raise RuntimeError(f"Unexpected Gemini response: {str(data)[:400]}")
+
+    for attempt in range(retries + 1):
+        r = requests.post(url, json=payload, timeout=60)
+        if r.status_code == 429 and attempt < retries:
+            time.sleep(1.5 * (attempt + 1))
+            continue
+        if r.status_code >= 400:
+            raise RuntimeError(f"Gemini error {r.status_code}: {r.text[:300]}")
+        data = r.json()
+        try:
+            parts = data["candidates"][0]["content"].get("parts", [])
+            txt = "".join(p.get("text", "") for p in parts).strip()
+            if not txt:
+                raise KeyError("empty text")
+            return txt
+        except Exception:
+            # try once more with fewer tokens if shape is odd
+            if attempt < retries:
+                payload["generationConfig"]["maxOutputTokens"] = max(120, int(max_tokens * 0.75))
+                continue
+            raise RuntimeError(f"Unexpected Gemini response: {str(data)[:400]}")
 
 def _first_json_object(s: str) -> str | None:
-    """
-    Extract the first JSON object substring from s using a brace counter.
-    Returns the substring or None if not found/unterminated.
-    """
     start = s.find("{")
     if start == -1:
         return None
-    depth = 0
-    for i in range(start, len(s)):
+    depth, i = 0, start
+    while i < len(s):
         ch = s[i]
         if ch == "{":
             depth += 1
@@ -77,10 +75,10 @@ def _first_json_object(s: str) -> str | None:
             depth -= 1
             if depth == 0:
                 return s[start:i+1]
-    return None  # unterminated
+        i += 1
+    return None
 
-def _try_parse_single(obj) -> tuple[str, str] | None:
-    """Return (quote, reflection) or None."""
+def _try_parse_single(obj):
     if not isinstance(obj, dict):
         return None
     q = (obj.get("quote") or "").strip()
@@ -89,11 +87,8 @@ def _try_parse_single(obj) -> tuple[str, str] | None:
         return q, r
     return None
 
-def _coerce_to_single(json_text: str) -> tuple[str, str]:
-    """
-    Accepts: a JSON dict or an array of dicts.
-    If malformed, tries to extract first {...}. If still broken, raises.
-    """
+def _coerce_to_single(json_text: str):
+    # Accept dict or array-of-dicts, else try extraction
     try:
         data = json.loads(json_text)
         if isinstance(data, list) and data:
@@ -107,7 +102,6 @@ def _coerce_to_single(json_text: str) -> tuple[str, str]:
     except json.JSONDecodeError:
         pass
 
-    # Try to grab the first object with a brace counter
     frag = _first_json_object(json_text)
     if frag:
         try:
@@ -118,20 +112,14 @@ def _coerce_to_single(json_text: str) -> tuple[str, str]:
         except json.JSONDecodeError:
             pass
 
-    # As a last resort, try a very loose regex for keys and manually rebuild
     q_match = re.search(r'"quote"\s*:\s*"(.*?)"', json_text, re.DOTALL)
     r_match = re.search(r'"reflection"\s*:\s*"(.*?)"', json_text, re.DOTALL)
     if q_match and r_match:
-        q = q_match.group(1).strip()
-        r = r_match.group(1).strip()
-        return q, r
+        return q_match.group(1).strip(), r_match.group(1).strip()
 
     raise RuntimeError("Could not coerce Gemini output to a single JSON object.")
 
-def _repair_with_gemini(bad_text: str) -> tuple[str, str]:
-    """
-    Ask Gemini to sanitize malformed/partial output into valid JSON object.
-    """
+def _repair_with_gemini(bad_text: str):
     repair_prompt = (
         "Fix the following into a VALID JSON object with exactly these keys:\n"
         '{"quote": "<string>", "reflection": "<string>"}\n'
@@ -148,20 +136,19 @@ def generate_verse_and_reflection():
         '{ "quote": "<≤16 words, in typographic quotes like “...”>",\n'
         '  "reflection": "<1–2 sentences, ≤40 words, no hashtags>" }\n'
         "Rules:\n"
-        "- Use typographic quotes for the quote itself.\n"
-        "- The reflection is Instagram-friendly and concise.\n"
-        "- No additional keys. No explanations."
+        "- Use typographic quotes for the quote text.\n"
+        "- The reflection is concise and Instagram-friendly.\n"
+        "- No additional keys."
     )
 
     raw = _gemini_call(base_prompt, max_tokens=160, temperature=0.55)
 
-    # Parse or repair
     try:
         quote, refl = _coerce_to_single(raw)
     except Exception:
         quote, refl = _repair_with_gemini(raw)
 
-    # Guardrails: ensure proper wrapping and length caps
+    # Guardrails: quotes and lengths
     q = quote.strip()
     if not q.startswith(("“", "\"")):
         q = "“" + q.strip('“"').strip()
@@ -181,7 +168,11 @@ def generate_verse_and_reflection():
 # -----------------------------
 def generate_image_bytes(prompt, width=1024, height=1024):
     url = "https://api.stability.ai/v1/generation/stable-diffusion-v1-6/text-to-image"
-    headers = {"Authorization": f"Bearer {STABILITY_KEY}"}
+    headers = {
+        "Authorization": f"Bearer {STABILITY_KEY}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
     body = {
         "text_prompts": [{"text": prompt}],
         "cfg_scale": 7,
@@ -211,12 +202,10 @@ def draw_centered_text(img, verse, reflection):
     verse_wrapped = textwrap.fill(verse, width=28)
     reflection_wrapped = textwrap.fill(reflection, width=38)
 
-    # subtle shadow for legibility
     def _draw_line(line, y, font, fill):
         w, h = draw.textsize(line, font=font)
         x = (W - w) / 2
-        # shadow
-        draw.text((x+2, y+2), line, font=font, fill=(0,0,0))
+        draw.text((x+2, y+2), line, font=font, fill=(0,0,0))  # shadow
         draw.text((x, y), line, font=font, fill=fill)
         return h
 
@@ -260,10 +249,7 @@ if __name__ == "__main__":
     hashtags = "#Discipline #Focus #Perseverance #DailyMotivation"
     caption = f"{verse}\n\n{reflection}\n\n{hashtags}"
 
-    repo = os.getenv("GITHUB_REPOSITORY", "")
-    if not repo:
-        # Actions always sets this; but fall back for local runs
-        repo = "owner/repo"
+    repo = os.getenv("GITHUB_REPOSITORY", "") or "owner/repo"
     image_url = f"https://raw.githubusercontent.com/{repo}/main/{out_path.replace(os.sep, '/')}"
 
     payload = {"image_url": image_url, "caption": caption}
