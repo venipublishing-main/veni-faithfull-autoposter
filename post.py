@@ -49,28 +49,17 @@ def gemini_generate(prompt: str) -> str:
         raise RuntimeError(f"Unexpected Gemini response: {str(data)[:300]}")
 
 def generate_verse_and_reflection():
-    # Quote: short, generic (no attribution), fits on image
-    quote_prompt = (
-        f"Write ONE short, powerful quote about {THEME}. "
-        f"It must be generic (no attribution), wrapped in quotation marks, and 16 words or fewer."
+    prompt = (
+        f"Generate TWO short pieces of text about {THEME}.\n"
+        f"1. A brief, powerful quote (≤16 words, in quotation marks, no attribution).\n"
+        f"2. A concise 1–2 sentence reflection (≤40 words) expanding on the quote.\n"
+        f"Tone: {TONE}. Style: {STYLE}."
     )
-    verse = gemini_generate(quote_prompt)
-    if not verse.startswith(("“", "\"")):
-        verse = "“" + verse.strip('“"').strip() + "”"
-    if len(verse.split()) > 16:
-        verse = " ".join(verse.split()[:16]).rstrip(".!,;:") + "”"
-
-    # Reflection: 1–2 sentences, short, IG-friendly
-    reflection_prompt = (
-        f"Write a concise 1–2 sentence reflection that expands on this quote for Instagram. "
-        f"Tone: {TONE}. <= 40 words. Avoid hashtags.\nQuote: {verse}"
-    )
-    reflection = gemini_generate(reflection_prompt)
-    words = reflection.split()
-    if len(words) > 40:
-        reflection = " ".join(words[:40]).rstrip(".!,;:") + "."
-
-    return verse.strip(), reflection.strip()
+    full_text = gemini_generate(prompt)
+    parts = full_text.split("\n", 1)
+    verse = parts[0].strip()
+    reflection = parts[1].strip() if len(parts) > 1 else ""
+    return verse, reflection
 
 # -----------------------------
 # STABILITY IMAGE GENERATION
