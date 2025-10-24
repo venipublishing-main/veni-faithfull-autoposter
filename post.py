@@ -18,7 +18,7 @@ STYLE = os.getenv("STYLE", "dark minimalist aesthetic, cinematic lighting")
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 STABILITY_KEY = os.getenv("STABILITY_API_KEY")
-HF_MODEL = os.getenv("HF_MODEL", "HuggingFaceH4/zephyr-7b-beta")  # serverless-friendly default
+HF_MODEL = os.getenv("HF_MODEL", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")  # serverless-friendly default
 
 if not HF_TOKEN:
     raise RuntimeError("Missing HF_TOKEN (Hugging Face token)")
