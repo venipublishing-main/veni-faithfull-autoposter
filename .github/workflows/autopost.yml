@@ -15,11 +15,11 @@ jobs:
 
     # Make secrets/env available to all steps
     env:
-      IG_TOKEN: ${{ secrets.IG_TOKEN }}
-      IG_USER_ID: ${{ secrets.IG_USER_ID }}
-      HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
-      HF_MODEL: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+  IG_TOKEN: ${{ secrets.IG_TOKEN }}
+  IG_USER_ID: ${{ secrets.IG_USER_ID }}
+  STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
+  DEEPAI_KEY: ${{ secrets.DEEPAI_KEY }}
+
 
     steps:
       - name: Checkout
