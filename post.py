@@ -18,13 +18,12 @@ STYLE = os.getenv("STYLE", "dark minimalist aesthetic, cinematic lighting")
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 STABILITY_KEY = os.getenv("STABILITY_API_KEY")
+HF_MODEL = os.getenv("HF_MODEL", "HuggingFaceH4/zephyr-7b-beta")  # serverless-friendly default
 
 if not HF_TOKEN:
     raise RuntimeError("Missing HF_TOKEN (Hugging Face token)")
 if not STABILITY_KEY:
     raise RuntimeError("Missing STABILITY_API_KEY (Stability AI key)")
-
-HF_MODEL = "mistralai/Mistral-7B-Instruct-v0.2"
 
 # -----------------------------
 # HUGGING FACE TEXT GENERATION
@@ -39,21 +38,27 @@ def hf_complete(prompt, max_new_tokens=160):
             "return_full_text": False
         }
     }
-    r = requests.post(
-        f"https://api-inference.huggingface.co/models/{HF_MODEL}",
-        headers=headers, json=payload, timeout=60
-    )
+    url = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
+    r = requests.post(url, headers=headers, json=payload, timeout=60)
+    if r.status_code == 404:
+        raise RuntimeError(f"HF model not available on serverless: {HF_MODEL}")
     r.raise_for_status()
     data = r.json()
     if isinstance(data, list) and data and "generated_text" in data[0]:
         return data[0]["generated_text"].strip()
     if isinstance(data, dict) and "generated_text" in data:
         return data["generated_text"].strip()
-    raise RuntimeError(f"Unexpected HF response: {str(data)[:300]}")
+    raise RuntimeError(f"Unexpected HF response from {HF_MODEL}: {str(data)[:300]}")
 
 def generate_verse_and_reflection():
-    verse_prompt = f"Write one short, powerful quote about {THEME}. It must be generic, ≤16 words, in quotation marks."
-    reflection_prompt = f"Write a 1–2 sentence reflection expanding the quote for an Instagram audience. Tone: {TONE}. Style: {STYLE}. ≤40 words."
+    verse_prompt = (
+        f"Write one short, powerful quote about {THEME}. "
+        f"It must be generic (no attribution), in quotation marks, ≤16 words."
+    )
+    reflection_prompt = (
+        f"Write a 1–2 sentence reflection expanding the quote for an Instagram audience. "
+        f"Tone: {TONE}. Style hints: {STYLE}. ≤40 words."
+    )
     verse = hf_complete(verse_prompt, 64)
     if not verse.startswith(("“", "\"")):
         verse = "“" + verse.strip('"').strip('“').strip() + "”"
@@ -112,20 +117,25 @@ def draw_centered_text(img, verse, reflection):
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
 
+    # 1) Text
     verse, reflection = generate_verse_and_reflection()
 
+    # 2) Image
     img_bytes = generate_image_bytes(
         f"{THEME}, {STYLE}, instagram composition, detailed, high quality"
     )
     base_img = Image.open(BytesIO(img_bytes)).convert("RGB")
 
+    # 3) Optional overlay
     final_img = draw_centered_text(base_img, verse, reflection) if OVERLAY_TEXT_ON_IMAGE else base_img
 
+    # 4) Save
     today = datetime.utcnow().strftime("%Y-%m-%d")
     filename = f"{today}.jpg"
     out_path = os.path.join(OUT_DIR, filename)
     final_img.save(out_path, "JPEG", quality=95)
 
+    # 5) Caption + payload
     hashtags = "#Discipline #Focus #Perseverance #DailyMotivation"
     caption = f"{verse}\n\n{reflection}\n\n{hashtags}"
 
