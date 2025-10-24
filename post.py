@@ -161,25 +161,38 @@ def generate_verse_and_reflection():
 # STABILITY IMAGE GENERATION
 # -----------------------------
 def generate_image_bytes(prompt, width=1024, height=1024):
-    url = "https://api.stability.ai/v1/generation/stable-diffusion-v1-6/text-to-image"
+    """
+    Uses Stability's v2beta Stable Image (Core) endpoint.
+    Returns raw image bytes (JPEG). No base64 parsing needed.
+    """
+    url = "https://api.stability.ai/v2beta/stable-image/generate/core"
     headers = {
         "Authorization": f"Bearer {STABILITY_KEY}",
-        "Accept": "application/json",
+        "Accept": "image/*",
         "Content-Type": "application/json",
     }
+    # v2beta uses aspect ratio instead of width/height. Use 1:1 for Instagram.
     body = {
-        "text_prompts": [{"text": prompt}],
-        "cfg_scale": 7,
-        "width": width,
-        "height": height,
-        "samples": 1
+        "prompt": prompt,
+        "output_format": "jpeg",      # "png" also allowed
+        "aspect_ratio": "1:1",        # square image
+        # Optional controls:
+        # "negative_prompt": "",
+        # "seed": 0,
+        # "cfg_scale": 7,
+        # "steps": 30,
     }
-    r = requests.post(url, headers=headers, json=body, timeout=120)
-    r.raise_for_status()
-    j = r.json()
-    if "artifacts" not in j or not j["artifacts"]:
-        raise RuntimeError(f"Stability API returned no image: {str(j)[:200]}")
-    return base64.b64decode(j["artifacts"][0]["base64"])
+
+    r = requests.post(url, headers=headers, json=body, timeout=180)
+    if r.status_code >= 400:
+        # When the API returns JSON errors, surface them
+        try:
+            err = r.json()
+        except Exception:
+            err = r.text[:400]
+        raise RuntimeError(f"Stability API error {r.status_code}: {err}")
+    return r.content
+
 
 # -----------------------------
 # TEXT OVERLAY
