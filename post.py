@@ -162,38 +162,38 @@ def generate_verse_and_reflection():
 # -----------------------------
 def generate_image_bytes(prompt, width=1024, height=1024):
     """
-    Uses Stability's v2beta Stable Image (Core) endpoint.
-    Returns raw image bytes (JPEG). No base64 parsing needed.
+    Stability v2beta Stable Image (Core) — requires multipart/form-data.
+    Returns raw image bytes (JPEG).
     """
     url = "https://api.stability.ai/v2beta/stable-image/generate/core"
     headers = {
         "Authorization": f"Bearer {STABILITY_KEY}",
-        "Accept": "image/*",
-        "Content-Type": "application/json",
-    }
-    # v2beta uses aspect ratio instead of width/height. Use 1:1 for Instagram.
-    body = {
-        "prompt": prompt,
-        "output_format": "jpeg",      # "png" also allowed
-        "aspect_ratio": "1:1",        # square image
-        # Optional controls:
-        # "negative_prompt": "",
-        # "seed": 0,
-        # "cfg_scale": 7,
-        # "steps": 30,
+        "Accept": "image/*",  # response is binary image
+        # DO NOT set Content-Type manually; requests will set it for multipart
     }
 
-    r = requests.post(url, headers=headers, json=body, timeout=180)
+    # Multipart fields: (filename, value) or (None, value) for simple fields
+    files = {
+        "prompt": (None, prompt),
+        "output_format": (None, "jpeg"),   # or "png"
+        "aspect_ratio": (None, "1:1"),     # square for IG
+        # Optional controls:
+        # "seed": (None, "0"),
+        # "cfg_scale": (None, "7"),
+        # "steps": (None, "30"),
+        # "negative_prompt": (None, "low quality, blurry"),
+    }
+
+    r = requests.post(url, headers=headers, files=files, timeout=180)
     if r.status_code >= 400:
-        # When the API returns JSON errors, surface them
+        # API returns JSON error payloads on failure
         try:
             err = r.json()
         except Exception:
             err = r.text[:400]
         raise RuntimeError(f"Stability API error {r.status_code}: {err}")
+
     return r.content
-
-
 # -----------------------------
 # TEXT OVERLAY
 # -----------------------------
