@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, json, base64, textwrap, re, time
+import os, json, base64, textwrap, re
 from datetime import datetime
 import requests
 from PIL import Image, ImageDraw, ImageFont
@@ -17,9 +17,10 @@ THEME = os.getenv("THEME", "discipline, focus, perseverance")
 TONE  = os.getenv("TONE",  "motivational, concise, modern")
 STYLE = os.getenv("STYLE", "dark minimalist aesthetic, cinematic lighting")
 
-GEMINI_KEY     = os.getenv("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
-STABILITY_KEY  = os.getenv("STABILITY_API_KEY", "").strip()
+GEMINI_KEY       = os.getenv("GEMINI_API_KEY", "").strip()
+GEMINI_MODEL     = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+GEMINI_MAX_TOKENS = int(os.getenv("GEMINI_MAX_TOKENS", "800"))  # large allowance
+STABILITY_KEY    = os.getenv("STABILITY_API_KEY", "").strip()
 
 if not GEMINI_KEY:
     raise RuntimeError("Missing GEMINI_API_KEY")
@@ -27,9 +28,13 @@ if not STABILITY_KEY:
     raise RuntimeError("Missing STABILITY_API_KEY")
 
 # -----------------------------
-# GEMINI
+# GEMINI (no fallbacks, fail-fast)
 # -----------------------------
-def _gemini_call(text, max_tokens=160, temperature=0.55, retries=2):
+def _gemini_call(text: str, max_tokens: int, temperature: float = 0.5) -> str:
+    """
+    Single call to Gemini v1beta. Large maxOutputTokens; no retries or backups.
+    Raises with a clear message if no text or MAX_TOKENS occurs.
+    """
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
     payload = {
         "contents": [{"role": "user", "parts": [{"text": text}]}],
@@ -38,36 +43,36 @@ def _gemini_call(text, max_tokens=160, temperature=0.55, retries=2):
             "maxOutputTokens": max_tokens,
             "responseMimeType": "application/json"
         }
-        # NOTE: safetySettings removed to avoid INVALID_ARGUMENT errors
     }
+    r = requests.post(url, json=payload, timeout=60)
+    if r.status_code >= 400:
+        raise RuntimeError(f"Gemini HTTP {r.status_code}: {r.text[:400]}")
+    data = r.json()
 
-    for attempt in range(retries + 1):
-        r = requests.post(url, json=payload, timeout=60)
-        if r.status_code == 429 and attempt < retries:
-            time.sleep(1.5 * (attempt + 1))
-            continue
-        if r.status_code >= 400:
-            raise RuntimeError(f"Gemini error {r.status_code}: {r.text[:300]}")
-        data = r.json()
-        try:
-            parts = data["candidates"][0]["content"].get("parts", [])
-            txt = "".join(p.get("text", "") for p in parts).strip()
-            if not txt:
-                raise KeyError("empty text")
-            return txt
-        except Exception:
-            # try once more with fewer tokens if shape is odd
-            if attempt < retries:
-                payload["generationConfig"]["maxOutputTokens"] = max(120, int(max_tokens * 0.75))
-                continue
-            raise RuntimeError(f"Unexpected Gemini response: {str(data)[:400]}")
+    # Typical: candidates[0].content.parts[].text
+    cand0 = (data.get("candidates") or [{}])[0]
+    finish = cand0.get("finishReason")
+    parts = cand0.get("content", {}).get("parts", [])
+    txt = "".join(p.get("text", "") for p in parts).strip()
+
+    if not txt:
+        if finish == "MAX_TOKENS":
+            raise RuntimeError(
+                f"Gemini hit MAX_TOKENS before emitting text. "
+                f"Increase GEMINI_MAX_TOKENS (currently {max_tokens}) or shorten the prompt.\n"
+                f"Raw shape: {str(data)[:400]}"
+            )
+        raise RuntimeError(f"Gemini returned no text. Raw shape: {str(data)[:400]}")
+
+    return txt
 
 def _first_json_object(s: str) -> str | None:
+    """Extract first well-formed {...} substring by brace counting."""
     start = s.find("{")
     if start == -1:
         return None
-    depth, i = 0, start
-    while i < len(s):
+    depth = 0
+    for i in range(start, len(s)):
         ch = s[i]
         if ch == "{":
             depth += 1
@@ -75,10 +80,10 @@ def _first_json_object(s: str) -> str | None:
             depth -= 1
             if depth == 0:
                 return s[start:i+1]
-        i += 1
     return None
 
 def _try_parse_single(obj):
+    """Return (quote, reflection) if dict has both; else None."""
     if not isinstance(obj, dict):
         return None
     q = (obj.get("quote") or "").strip()
@@ -88,7 +93,11 @@ def _try_parse_single(obj):
     return None
 
 def _coerce_to_single(json_text: str):
-    # Accept dict or array-of-dicts, else try extraction
+    """
+    Accept a dict or [dict]; otherwise try to extract the first {...}.
+    No further calls to Gemini; fail-fast if still invalid.
+    """
+    # Direct parse
     try:
         data = json.loads(json_text)
         if isinstance(data, list) and data:
@@ -102,53 +111,38 @@ def _coerce_to_single(json_text: str):
     except json.JSONDecodeError:
         pass
 
+    # Try first {...}
     frag = _first_json_object(json_text)
     if frag:
-        try:
-            data = json.loads(frag)
-            parsed = _try_parse_single(data)
-            if parsed:
-                return parsed
-        except json.JSONDecodeError:
-            pass
+        data = json.loads(frag)  # if this fails, let it raise
+        parsed = _try_parse_single(data)
+        if parsed:
+            return parsed
 
-    q_match = re.search(r'"quote"\s*:\s*"(.*?)"', json_text, re.DOTALL)
-    r_match = re.search(r'"reflection"\s*:\s*"(.*?)"', json_text, re.DOTALL)
-    if q_match and r_match:
-        return q_match.group(1).strip(), r_match.group(1).strip()
+    # As a last structural check, confirm keys are present (still fail-fast)
+    if '"quote"' in json_text and '"reflection"' in json_text:
+        raise RuntimeError(
+            "Gemini responded with text containing the keys but invalid JSON structure. "
+            "Inspect the response or adjust the prompt to ensure valid JSON."
+        )
 
-    raise RuntimeError("Could not coerce Gemini output to a single JSON object.")
-
-def _repair_with_gemini(bad_text: str):
-    repair_prompt = (
-        "Fix the following into a VALID JSON object with exactly these keys:\n"
-        '{"quote": "<string>", "reflection": "<string>"}\n'
-        "If text is truncated, complete it succinctly. No arrays. Return ONLY JSON.\n\n"
-        f"INPUT:\n{bad_text}"
+    raise RuntimeError(
+        "Gemini did not return a valid single JSON object with keys "
+        '"quote" and "reflection".'
     )
-    fixed = _gemini_call(repair_prompt, max_tokens=120, temperature=0.2)
-    return _coerce_to_single(fixed)
 
 def generate_verse_and_reflection():
-    base_prompt = (
-        f"Write a SINGLE short Christian quote and a short reflection about {THEME}.\n"
-        "Output ONLY one JSON object (no arrays, no extra text):\n"
-        '{ "quote": "<≤16 words, in typographic quotes like “...”>",\n'
-        '  "reflection": "<1–2 sentences, ≤40 words, no hashtags>" }\n'
-        "Rules:\n"
-        "- Use typographic quotes for the quote text.\n"
-        "- The reflection is concise and Instagram-friendly.\n"
-        "- No additional keys."
+    prompt = (
+        f"Write ONE short Christian quote and ONE short reflection about {THEME}.\n"
+        "Return ONLY a single JSON object (no arrays, no extra keys, no prose):\n"
+        '{ "quote": "<≤16 words, typographic quotes like “...”>", '
+        '"reflection": "<1 sentence, ≤36 words, no hashtags>" }'
     )
 
-    raw = _gemini_call(base_prompt, max_tokens=160, temperature=0.55)
+    raw = _gemini_call(prompt, max_tokens=GEMINI_MAX_TOKENS, temperature=0.5)
+    quote, refl = _coerce_to_single(raw)
 
-    try:
-        quote, refl = _coerce_to_single(raw)
-    except Exception:
-        quote, refl = _repair_with_gemini(raw)
-
-    # Guardrails: quotes and lengths
+    # Guardrails: quotes and lengths (local, not a fallback)
     q = quote.strip()
     if not q.startswith(("“", "\"")):
         q = "“" + q.strip('“"').strip()
@@ -158,8 +152,8 @@ def generate_verse_and_reflection():
         q = " ".join(q.split()[:16]).rstrip(".!,;:") + "”"
 
     words = refl.split()
-    if len(words) > 40:
-        refl = " ".join(words[:40]).rstrip(".!,;:") + "."
+    if len(words) > 36:
+        refl = " ".join(words[:36]).rstrip(".!,;:") + "."
 
     return q, refl
 
@@ -227,7 +221,7 @@ def draw_centered_text(img, verse, reflection):
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    # 1) Text via Gemini (robust)
+    # 1) Text via Gemini (large max tokens, no fallback)
     verse, reflection = generate_verse_and_reflection()
 
     # 2) Image via Stability
