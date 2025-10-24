@@ -17,6 +17,7 @@ TONE  = os.getenv("TONE",  "motivational, concise, modern")
 STYLE = os.getenv("STYLE", "dark minimalist aesthetic, cinematic lighting")
 
 GEMINI_KEY     = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 STABILITY_KEY  = os.getenv("STABILITY_API_KEY")
 
 if not GEMINI_KEY:
@@ -25,40 +26,68 @@ if not STABILITY_KEY:
     raise RuntimeError("Missing STABILITY_API_KEY")
 
 # -----------------------------
-# GEMINI TEXT GENERATION (free tier)
+# GEMINI TEXT GENERATION (JSON)
 # -----------------------------
-# Model name kept as env for easy swaps; default to a Flash model suitable for free tier
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-
 def gemini_generate(prompt: str) -> str:
     """
-    Calls the new Google GenAI endpoint.
+    Calls Google GenAI (Gemini) and returns the first text part.
+    We request JSON via responseMimeType to make parsing robust.
     """
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
     payload = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.8, "maxOutputTokens": 200}
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": 320,
+            "responseMimeType": "application/json"
+        }
     }
     r = requests.post(url, json=payload, timeout=60)
     if r.status_code >= 400:
         raise RuntimeError(f"Gemini error {r.status_code}: {r.text[:300]}")
     data = r.json()
     try:
-        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        parts = data["candidates"][0]["content"].get("parts", [])
+        if not parts or "text" not in parts[0]:
+            raise KeyError("No text parts in response")
+        return parts[0]["text"].strip()
     except Exception:
-        raise RuntimeError(f"Unexpected Gemini response: {str(data)[:300]}")
+        raise RuntimeError(f"Unexpected Gemini response shape: {str(data)[:300]}")
 
 def generate_verse_and_reflection():
     prompt = (
-        f"Generate TWO short pieces of text about {THEME}.\n"
-        f"1. A brief, powerful quote (≤16 words, in quotation marks, no attribution).\n"
-        f"2. A concise 1–2 sentence reflection (≤40 words) expanding on the quote.\n"
-        f"Tone: {TONE}. Style: {STYLE}."
+        f"Generate TWO short pieces of text about {THEME} and return ONLY this JSON object:\n"
+        '{ "quote": "<≤16 words, in quotation marks, no attribution>", '
+        '"reflection": "<1–2 sentences, ≤40 words, no hashtags>" }\n\n'
+        "Rules:\n"
+        "- The quote MUST be wrapped in typographic quotes like “...”.\n"
+        "- The reflection is concise and Instagram-friendly.\n"
+        "- Do not include any extra keys or text besides the JSON."
     )
-    full_text = gemini_generate(prompt)
-    parts = full_text.split("\n", 1)
-    verse = parts[0].strip()
-    reflection = parts[1].strip() if len(parts) > 1 else ""
+    raw = gemini_generate(prompt)
+
+    # Parse JSON; if the model wrapped it in prose, extract first {...} block
+    try:
+        obj = json.loads(raw)
+    except Exception:
+        start = raw.find("{"); end = raw.rfind("}")
+        if start == -1 or end == -1:
+            raise RuntimeError(f"Could not parse JSON from Gemini response: {raw[:200]}")
+        obj = json.loads(raw[start:end+1])
+
+    verse = (obj.get("quote") or "").strip()
+    reflection = (obj.get("reflection") or "").strip()
+
+    # Guardrails: ensure quotes + length caps
+    if not verse.startswith(("“", "\"")):
+        verse = "“" + verse.strip('“"').strip() + "”"
+    if len(verse.split()) > 16:
+        verse = " ".join(verse.split()[:16]).rstrip(".!,;:") + "”"
+
+    words = reflection.split()
+    if len(words) > 40:
+        reflection = " ".join(words[:40]).rstrip(".!,;:") + "."
+
     return verse, reflection
 
 # -----------------------------
