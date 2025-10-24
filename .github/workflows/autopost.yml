@@ -19,7 +19,7 @@ jobs:
       IG_USER_ID: ${{ secrets.IG_USER_ID }}
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
-      HF_MODEL: HuggingFaceH4/zephyr-7b-beta
+      HF_MODEL: TinyLlama/TinyLlama-1.1B-Chat-v1.0
 
     steps:
       - name: Checkout
