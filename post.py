@@ -1,4 +1,4 @@
-import os, json, uuid, base64, textwrap
+import os, json, base64, textwrap
 from datetime import datetime
 import requests
 from PIL import Image, ImageDraw, ImageFont
@@ -13,57 +13,59 @@ OVERLAY_TEXT_ON_IMAGE = True  # set False to post clean image without text overl
 
 # You can override these by setting GitHub env vars
 THEME = os.getenv("THEME", "discipline, focus, perseverance")
-TONE = os.getenv("TONE", "motivational, concise, modern")
+TONE  = os.getenv("TONE",  "motivational, concise, modern")
 STYLE = os.getenv("STYLE", "dark minimalist aesthetic, cinematic lighting")
 
-HF_TOKEN = os.getenv("HF_TOKEN")
-STABILITY_KEY = os.getenv("STABILITY_API_KEY")
-HF_MODEL = os.getenv("HF_MODEL", "TinyLlama/TinyLlama-1.1B-Chat-v1.0")  # serverless-friendly default
+DEEPAI_KEY     = os.getenv("DEEPAI_KEY")
+STABILITY_KEY  = os.getenv("STABILITY_API_KEY")
 
-if not HF_TOKEN:
-    raise RuntimeError("Missing HF_TOKEN (Hugging Face token)")
+if not DEEPAI_KEY:
+    raise RuntimeError("Missing DEEPAI_KEY (DeepAI API key)")
 if not STABILITY_KEY:
     raise RuntimeError("Missing STABILITY_API_KEY (Stability AI key)")
 
 # -----------------------------
-# HUGGING FACE TEXT GENERATION
+# DEEPAI TEXT GENERATION
 # -----------------------------
-def hf_complete(prompt, max_new_tokens=160):
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": max_new_tokens,
-            "temperature": 0.8,
-            "return_full_text": False
-        }
-    }
-    url = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
-    r = requests.post(url, headers=headers, json=payload, timeout=60)
-    if r.status_code == 404:
-        raise RuntimeError(f"HF model not available on serverless: {HF_MODEL}")
+def deepai_generate(prompt: str) -> str:
+    url = "https://api.deepai.org/api/text-generator"
+    headers = {"api-key": DEEPAI_KEY}
+    r = requests.post(url, data={"text": prompt}, headers=headers, timeout=45)
     r.raise_for_status()
     data = r.json()
-    if isinstance(data, list) and data and "generated_text" in data[0]:
-        return data[0]["generated_text"].strip()
-    if isinstance(data, dict) and "generated_text" in data:
-        return data["generated_text"].strip()
-    raise RuntimeError(f"Unexpected HF response from {HF_MODEL}: {str(data)[:300]}")
+    out = (data.get("output") or "").strip()
+    if not out:
+        raise RuntimeError(f"DeepAI returned empty output for prompt: {prompt[:80]}...")
+    return out
 
 def generate_verse_and_reflection():
-    verse_prompt = (
+    # Quote: short, generic (no attribution), fits on image
+    quote_prompt = (
         f"Write one short, powerful quote about {THEME}. "
-        f"It must be generic (no attribution), in quotation marks, ≤16 words."
+        f"It must be generic (no attribution), wrapped in quotation marks, and 16 words or fewer."
     )
-    reflection_prompt = (
-        f"Write a 1–2 sentence reflection expanding the quote for an Instagram audience. "
-        f"Tone: {TONE}. Style hints: {STYLE}. ≤40 words."
-    )
-    verse = hf_complete(verse_prompt, 64)
+    verse = deepai_generate(quote_prompt)
+    # enforce wrapping quotes if model forgot
     if not verse.startswith(("“", "\"")):
-        verse = "“" + verse.strip('"').strip('“').strip() + "”"
-    reflection = hf_complete(reflection_prompt, 120)
-    return verse, reflection
+        verse = "“" + verse.strip('“"').strip() + "”"
+    # Trim overly long outputs (safety)
+    if len(verse.split()) > 16:
+        verse = " ".join(verse.split()[:16])
+        if not verse.endswith("”"):
+            verse = verse.rstrip(".!,;:") + "”"
+
+    # Reflection: 1–2 sentences, short, IG-friendly
+    reflection_prompt = (
+        f"Write a concise 1–2 sentence reflection that expands on this quote for Instagram. "
+        f"Tone: {TONE}. <= 40 words. Avoid hashtags.\nQuote: {verse}"
+    )
+    reflection = deepai_generate(reflection_prompt)
+    # keep it tight
+    words = reflection.split()
+    if len(words) > 40:
+        reflection = " ".join(words[:40]).rstrip(".!,;:") + "."
+
+    return verse.strip(), reflection.strip()
 
 # -----------------------------
 # STABILITY IMAGE GENERATION
@@ -117,10 +119,10 @@ def draw_centered_text(img, verse, reflection):
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    # 1) Text
+    # 1) Text via DeepAI
     verse, reflection = generate_verse_and_reflection()
 
-    # 2) Image
+    # 2) Image via Stability
     img_bytes = generate_image_bytes(
         f"{THEME}, {STYLE}, instagram composition, detailed, high quality"
     )
