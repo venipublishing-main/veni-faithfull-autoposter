@@ -13,12 +13,13 @@ jobs:
   post:
     runs-on: ubuntu-latest
 
-    # Make secrets available to all steps
+    # Make secrets/env available to all steps
     env:
       IG_TOKEN: ${{ secrets.IG_TOKEN }}
       IG_USER_ID: ${{ secrets.IG_USER_ID }}
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
+      HF_MODEL: HuggingFaceH4/zephyr-7b-beta
 
     steps:
       - name: Checkout
@@ -39,19 +40,19 @@ jobs:
           python - << 'PY'
           import os, requests, sys
           tok = os.environ.get("HF_TOKEN")
+          model = os.environ.get("HF_MODEL", "HuggingFaceH4/zephyr-7b-beta")
           if not tok:
-              print("HF_TOKEN not present in env"); sys.exit(1)
-          url = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
-          r = requests.post(url, headers={"Authorization": f"Bearer {tok}"}, json={"inputs": "ping"}, timeout=30)
-          print("Status:", r.status_code)
+            print("HF_TOKEN not present in env"); sys.exit(1)
+          url = f"https://api-inference.huggingface.co/models/{model}"
+          r = requests.post(url, headers={"Authorization": f"Bearer {tok}"},
+                            json={"inputs": "ping"}, timeout=60)
+          print("Model:", model, "| Status:", r.status_code)
           if r.status_code == 401:
-              print("HF 401 Unauthorized — token wrong/expired/scope missing")
-              sys.exit(1)
+            print("HF 401 Unauthorized — token wrong/expired/scope missing"); sys.exit(1)
           elif r.status_code >= 400:
-              print("HF error:", r.text[:500])
-              sys.exit(1)
+            print("HF error:", r.text[:500]); sys.exit(1)
           else:
-              print("HF token looks good.")
+            print("HF token looks good.")
           PY
 
       - name: Generate image & caption payload
@@ -79,7 +80,7 @@ jobs:
           IG_USER_ID = os.environ['IG_USER_ID']
 
           with open('post_payload.json', 'r', encoding='utf-8') as f:
-              payload = json.load(f)
+            payload = json.load(f)
 
           image_url = payload['image_url']
           caption = payload['caption']
@@ -87,9 +88,9 @@ jobs:
           # Step 1: Create container
           create_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media"
           r = requests.post(create_url, data={
-              "image_url": image_url,
-              "caption": caption,
-              "access_token": IG_TOKEN
+            "image_url": image_url,
+            "caption": caption,
+            "access_token": IG_TOKEN
           }, timeout=30)
           print("Create status:", r.status_code, r.text)
           r.raise_for_status()
@@ -99,8 +100,8 @@ jobs:
           time.sleep(5)
           publish_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media_publish"
           r2 = requests.post(publish_url, data={
-              "creation_id": creation_id,
-              "access_token": IG_TOKEN
+            "creation_id": creation_id,
+            "access_token": IG_TOKEN
           }, timeout=30)
           print("Publish status:", r2.status_code, r2.text)
           r2.raise_for_status()
