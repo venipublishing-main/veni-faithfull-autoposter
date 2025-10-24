@@ -17,7 +17,8 @@ jobs:
       IG_TOKEN: ${{ secrets.IG_TOKEN }}
       IG_USER_ID: ${{ secrets.IG_USER_ID }}
       STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
-      DEEPAI_KEY: ${{ secrets.DEEPAI_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: gemini-1.5-flash
 
     steps:
       - name: Checkout
