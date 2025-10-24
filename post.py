@@ -197,6 +197,13 @@ def generate_image_bytes(prompt, width=1024, height=1024):
 # -----------------------------
 # TEXT OVERLAY
 # -----------------------------
+def _text_size(draw, text, font):
+    try:
+        bbox = draw.textbbox((0, 0), text, font=font)
+        return bbox[2] - bbox[0], bbox[3] - bbox[1]
+    except AttributeError:
+        return draw.textsize(text, font=font)
+
 def draw_centered_text(img, verse, reflection):
     W, H = img.size
     draw = ImageDraw.Draw(img)
@@ -210,9 +217,9 @@ def draw_centered_text(img, verse, reflection):
     reflection_wrapped = textwrap.fill(reflection, width=38)
 
     def _draw_line(line, y, font, fill):
-        w, h = draw.textsize(line, font=font)
+        w, h = _text_size(draw, line, font)
         x = (W - w) / 2
-        draw.text((x+2, y+2), line, font=font, fill=(0,0,0))  # shadow
+        draw.text((x + 2, y + 2), line, font=font, fill=(0, 0, 0))  # shadow
         draw.text((x, y), line, font=font, fill=fill)
         return h
 
