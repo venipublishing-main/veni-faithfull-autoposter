@@ -158,30 +158,61 @@ def generate_verse_and_reflection():
     return q, refl
 
 # -----------------------------
-# STABILITY IMAGE GENERATION (discourage text in image)
+# STABILITY IMAGE GENERATION (resilient + no-text)
 # -----------------------------
 def generate_image_bytes(prompt, width=1024, height=1024):
-    url = "https://api.stability.ai/v1/generation/stable-diffusion-v1-6/text-to-image"
-    headers = {"Authorization": f"Bearer {STABILITY_KEY}"}
+    import random
+
+    # Allow override from env; else try a safe fallback list
+    primary_engine = os.getenv("STABILITY_ENGINE", "stable-diffusion-v1-6")
+    fallback_engines = [
+        primary_engine,                        # env-pinned first
+        "stable-diffusion-v1-5",               # older but common
+        "stable-diffusion-xl-1024-v1-0",       # XL route (still supports JSON base64 with this path)
+    ]
 
     negative = (
         "text, letters, typography, captions, watermark, logo, signature, words, "
         "flat plain background, low detail, low contrast, artifacts"
     )
 
-    body = {
-        "text_prompts": [
-            {"text": f"{prompt}, no text, no typography, clean background"},
-            {"text": negative, "weight": -1.2}
-        ],
-        "cfg_scale": 7,
-        "width": width,
-        "height": height,
-        "samples": 1
+    headers = {
+        "Authorization": f"Bearer {STABILITY_KEY}",
+        "Accept": "application/json",
     }
-    r = requests.post(url, headers=headers, json=body, timeout=120)
-    r.raise_for_status()
-    return base64.b64decode(r.json()["artifacts"][0]["base64"])
+
+    last_err = None
+    for engine in fallback_engines:
+        url = f"https://api.stability.ai/v1/generation/{engine}/text-to-image"
+        body = {
+            "text_prompts": [
+                {"text": f"{prompt}, no text, no typography, clean background"},
+                {"text": negative, "weight": -1.2}
+            ],
+            "cfg_scale": 7,
+            "width": width,
+            "height": height,
+            "samples": 1,
+            "seed": random.randint(1, 2_147_483_000),
+        }
+        try:
+            r = requests.post(url, headers=headers, json=body, timeout=120)
+            if r.status_code == 404:
+                print(f"[Stability] 404 for engine '{engine}' — trying next fallback…")
+                continue
+            r.raise_for_status()
+            data = r.json()
+            return base64.b64decode(data["artifacts"][0]["base64"])
+        except Exception as e:
+            last_err = e
+            # Print a short server message (if any) to logs for troubleshooting
+            try:
+                print(f"[Stability] Engine '{engine}' failed: {r.status_code} {r.text[:200]}")
+            except Exception:
+                print(f"[Stability] Engine '{engine}' failed: {e}")
+
+    raise RuntimeError(f"All Stability engines failed. Last error: {last_err}")
+
 
 # -----------------------------
 # TEXT OVERLAY (auto-fit + backdrop)
