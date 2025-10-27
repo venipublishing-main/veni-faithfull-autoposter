@@ -277,65 +277,106 @@ def _apply_bottom_gradient(img, strength=220):
     black.putalpha(alpha)
     return Image.alpha_composite(img.convert("RGBA"), black).convert("RGB")
 
-def draw_centered_text(img, verse, reflection):
-    """Replaces the old function with auto-fit, backdrop, stroke, and gradient."""
-    img = _apply_bottom_gradient(img)
+# -----------------------------
+# TEXT OVERLAY: quote only
+# -----------------------------
+import math
+
+def _load_font(path, size):
+    try:
+        return ImageFont.truetype(path, size)
+    except Exception:
+        try:
+            return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size)
+        except Exception:
+            return ImageFont.load_default()
+
+def _wrap_to_width(draw, text, font, max_w):
+    lines, cur = [], []
+    for word in text.split():
+        test = (" ".join(cur + [word])).strip()
+        w = draw.textlength(test, font=font)
+        if w <= max_w or not cur:
+            cur.append(word)
+        else:
+            lines.append(" ".join(cur))
+            cur = [word]
+    if cur:
+        lines.append(" ".join(cur))
+    return lines
+
+def _auto_fit_block(draw, text, target_w, target_h, max_size, min_size=18, step=2, font_path=FONT_PATH):
+    size = max_size
+    while size >= min_size:
+        font = _load_font(font_path, size)
+        lines = _wrap_to_width(draw, text, font, target_w)
+        if not lines:
+            size -= step
+            continue
+        line_h = font.getbbox("Ay")[3] - font.getbbox("Ay")[1]
+        total_h = int(len(lines) * (line_h + math.ceil(size * 0.25)))
+        max_line_w = max(draw.textlength(l, font=font) for l in lines)
+        if total_h <= target_h and max_line_w <= target_w:
+            return font, lines, line_h
+        size -= step
+    font = _load_font(font_path, min_size)
+    lines = _wrap_to_width(draw, text, font, target_w)
+    line_h = font.getbbox("Ay")[3] - font.getbbox("Ay")[1]
+    return font, lines, line_h
+
+def _apply_bottom_gradient(img, strength=220):
     w, h = img.size
-    draw = ImageDraw.Draw(img, "RGBA")
-
-    # Safe margins & layout regions
-    margin = int(w * 0.08)
-    verse_box = (margin, int(h*0.14), w - margin, int(h*0.59))  # top ~45%
-    refl_box  = (margin, int(h*0.62), w - margin, int(h*0.84))  # bottom ~22%
-
-    # Verse (bigger)
-    v_draw = ImageDraw.Draw(img, "RGBA")
-    v_font, v_lines, v_line_h = _auto_fit_block(
-        v_draw, verse,
-        target_w=verse_box[2]-verse_box[0],
-        target_h=verse_box[3]-verse_box[1],
-        max_size=int(w*0.085),  # ~8.5% width as starting point
-        font_path=FONT_PATH
-    )
-    _draw_block_with_backdrop(
-        v_draw, (verse_box[0], verse_box[1]),
-        v_lines, v_font, v_line_h,
-        pad=16, stroke=2, fill=(255,255,255), stroke_fill=(0,0,0), backdrop_alpha=90
-    )
-
-    # Reflection (smaller)
-    r_draw = ImageDraw.Draw(img, "RGBA")
-    r_font, r_lines, r_line_h = _auto_fit_block(
-        r_draw, reflection,
-        target_w=refl_box[2]-refl_box[0],
-        target_h=refl_box[3]-refl_box[1],
-        max_size=int(w*0.05),   # ~5% width starting point
-        font_path=FONT_PATH
-    )
-    _draw_block_with_backdrop(
-        r_draw, (refl_box[0], refl_box[1]),
-        r_lines, r_font, r_line_h,
-        pad=14, stroke=2, fill=(235,235,235), stroke_fill=(0,0,0), backdrop_alpha=72
-    )
-    return img
+    grad = Image.new("L", (1, h), 0)
+    for i in range(h):
+        t = max(0, (i - int(h*0.55)) / (h*0.45))
+        val = int((t**1.8) * strength)
+        grad.putpixel((0, i), val)
+    alpha = grad.resize((w, h))
+    black = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    black.putalpha(alpha)
+    return Image.alpha_composite(img.convert("RGBA"), black).convert("RGB")
 
 def _draw_block_with_backdrop(draw, xy, lines, font, line_h,
                               stroke=2, fill=(255,255,255), stroke_fill=(0,0,0),
                               pad=16, backdrop_alpha=90):
-    """Translucent rectangle behind text + stroked text for high contrast."""
     x, y = xy
     widths = [draw.textlength(l, font=font) for l in lines] if lines else [0]
     block_w = int(max(widths)) if widths else 0
     block_h = int(len(lines) * (line_h + math.ceil(font.size * 0.25)))
-
     if block_w > 0 and block_h > 0 and backdrop_alpha > 0:
         rect = [x - pad, y - pad, x + block_w + pad, y + block_h + pad]
         draw.rectangle(rect, fill=(0, 0, 0, backdrop_alpha))
-
     cy = y
     for l in lines:
         draw.text((x, cy), l, font=font, fill=fill, stroke_width=stroke, stroke_fill=stroke_fill)
         cy += line_h + math.ceil(font.size * 0.25)
+
+def draw_centered_text(img, verse, reflection):
+    """Render ONLY the quote (verse) on the image; reflection stays in caption."""
+    img = _apply_bottom_gradient(img)
+    w, h = img.size
+    draw = ImageDraw.Draw(img, "RGBA")
+
+    # Safe margins & a larger middle band for the quote
+    margin = int(w * 0.08)
+    # Center-ish box (from ~22% to ~78% height) so single block sits nicely
+    verse_box = (margin, int(h*0.22), w - margin, int(h*0.78))
+
+    v_font, v_lines, v_line_h = _auto_fit_block(
+        draw, verse,
+        target_w=verse_box[2]-verse_box[0],
+        target_h=verse_box[3]-verse_box[1],
+        max_size=int(w*0.10),     # slightly bigger since it's the only text
+        font_path=FONT_PATH
+    )
+
+    _draw_block_with_backdrop(
+        draw, (verse_box[0], verse_box[1]),
+        v_lines, v_font, v_line_h,
+        pad=18, stroke=2, fill=(255,255,255), stroke_fill=(0,0,0), backdrop_alpha=90
+    )
+    return img
+
 
 # -----------------------------
 # MAIN
