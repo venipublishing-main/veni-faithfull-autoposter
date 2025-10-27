@@ -158,82 +158,153 @@ def generate_verse_and_reflection():
     return q, refl
 
 # -----------------------------
-# STABILITY IMAGE GENERATION
+# STABILITY IMAGE GENERATION (discourage text in image)
 # -----------------------------
 def generate_image_bytes(prompt, width=1024, height=1024):
-    """
-    Stability v2beta Stable Image (Core) — requires multipart/form-data.
-    Returns raw image bytes (JPEG).
-    """
-    url = "https://api.stability.ai/v2beta/stable-image/generate/core"
-    headers = {
-        "Authorization": f"Bearer {STABILITY_KEY}",
-        "Accept": "image/*",  # response is binary image
-        # DO NOT set Content-Type manually; requests will set it for multipart
+    url = "https://api.stability.ai/v1/generation/stable-diffusion-v1-6/text-to-image"
+    headers = {"Authorization": f"Bearer {STABILITY_KEY}"}
+
+    negative = (
+        "text, letters, typography, captions, watermark, logo, signature, words, "
+        "flat plain background, low detail, low contrast, artifacts"
+    )
+
+    body = {
+        "text_prompts": [
+            {"text": f"{prompt}, no text, no typography, clean background"},
+            {"text": negative, "weight": -1.2}
+        ],
+        "cfg_scale": 7,
+        "width": width,
+        "height": height,
+        "samples": 1
     }
+    r = requests.post(url, headers=headers, json=body, timeout=120)
+    r.raise_for_status()
+    return base64.b64decode(r.json()["artifacts"][0]["base64"])
 
-    # Multipart fields: (filename, value) or (None, value) for simple fields
-    files = {
-        "prompt": (None, prompt),
-        "output_format": (None, "jpeg"),   # or "png"
-        "aspect_ratio": (None, "1:1"),     # square for IG
-        # Optional controls:
-        # "seed": (None, "0"),
-        # "cfg_scale": (None, "7"),
-        # "steps": (None, "30"),
-        # "negative_prompt": (None, "low quality, blurry"),
-    }
-
-    r = requests.post(url, headers=headers, files=files, timeout=180)
-    if r.status_code >= 400:
-        # API returns JSON error payloads on failure
-        try:
-            err = r.json()
-        except Exception:
-            err = r.text[:400]
-        raise RuntimeError(f"Stability API error {r.status_code}: {err}")
-
-    return r.content
 # -----------------------------
-# TEXT OVERLAY
+# TEXT OVERLAY (auto-fit + backdrop)
 # -----------------------------
-def _text_size(draw, text, font):
+import math
+
+def _load_font(path, size):
     try:
-        bbox = draw.textbbox((0, 0), text, font=font)
-        return bbox[2] - bbox[0], bbox[3] - bbox[1]
-    except AttributeError:
-        return draw.textsize(text, font=font)
+        return ImageFont.truetype(path, size)
+    except Exception:
+        # Fallback to a common runner font or default
+        try:
+            return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size)
+        except Exception:
+            return ImageFont.load_default()
+
+def _wrap_to_width(draw, text, font, max_w):
+    lines, cur = [], []
+    for word in text.split():
+        test = (" ".join(cur + [word])).strip()
+        w = draw.textlength(test, font=font)
+        if w <= max_w or not cur:
+            cur.append(word)
+        else:
+            lines.append(" ".join(cur))
+            cur = [word]
+    if cur:
+        lines.append(" ".join(cur))
+    return lines
+
+def _auto_fit_block(draw, text, target_w, target_h, max_size, min_size=18, step=2, font_path=FONT_PATH):
+    size = max_size
+    while size >= min_size:
+        font = _load_font(font_path, size)
+        lines = _wrap_to_width(draw, text, font, target_w)
+        if not lines:
+            size -= step
+            continue
+        # Calculate total height with line spacing ~0.25*size
+        line_h = font.getbbox("Ay")[3] - font.getbbox("Ay")[1]
+        total_h = int(len(lines) * (line_h + math.ceil(size * 0.25)))
+        max_line_w = max(draw.textlength(l, font=font) for l in lines)
+        if total_h <= target_h and max_line_w <= target_w:
+            return font, lines, line_h
+        size -= step
+    # Fallback
+    font = _load_font(font_path, min_size)
+    lines = _wrap_to_width(draw, text, font, target_w)
+    line_h = font.getbbox("Ay")[3] - font.getbbox("Ay")[1]
+    return font, lines, line_h
+
+def _apply_bottom_gradient(img, strength=220):
+    """Subtle bottom gradient (transparent→black) for readability."""
+    w, h = img.size
+    grad = Image.new("L", (1, h), 0)
+    for i in range(h):
+        t = max(0, (i - int(h*0.55)) / (h*0.45))  # start ~55% down
+        val = int((t**1.8) * strength)
+        grad.putpixel((0, i), val)
+    alpha = grad.resize((w, h))
+    black = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    black.putalpha(alpha)
+    return Image.alpha_composite(img.convert("RGBA"), black).convert("RGB")
 
 def draw_centered_text(img, verse, reflection):
-    W, H = img.size
-    draw = ImageDraw.Draw(img)
-    try:
-        font_verse = ImageFont.truetype(FONT_PATH, 64)
-        font_reflection = ImageFont.truetype(FONT_PATH, 36)
-    except Exception:
-        font_verse = font_reflection = ImageFont.load_default()
+    """Replaces the old function with auto-fit, backdrop, stroke, and gradient."""
+    img = _apply_bottom_gradient(img)
+    w, h = img.size
+    draw = ImageDraw.Draw(img, "RGBA")
 
-    verse_wrapped = textwrap.fill(verse, width=28)
-    reflection_wrapped = textwrap.fill(reflection, width=38)
+    # Safe margins & layout regions
+    margin = int(w * 0.08)
+    verse_box = (margin, int(h*0.14), w - margin, int(h*0.59))  # top ~45%
+    refl_box  = (margin, int(h*0.62), w - margin, int(h*0.84))  # bottom ~22%
 
-    def _draw_line(line, y, font, fill):
-        w, h = _text_size(draw, line, font)
-        x = (W - w) / 2
-        draw.text((x + 2, y + 2), line, font=font, fill=(0, 0, 0))  # shadow
-        draw.text((x, y), line, font=font, fill=fill)
-        return h
+    # Verse (bigger)
+    v_draw = ImageDraw.Draw(img, "RGBA")
+    v_font, v_lines, v_line_h = _auto_fit_block(
+        v_draw, verse,
+        target_w=verse_box[2]-verse_box[0],
+        target_h=verse_box[3]-verse_box[1],
+        max_size=int(w*0.085),  # ~8.5% width as starting point
+        font_path=FONT_PATH
+    )
+    _draw_block_with_backdrop(
+        v_draw, (verse_box[0], verse_box[1]),
+        v_lines, v_font, v_line_h,
+        pad=16, stroke=2, fill=(255,255,255), stroke_fill=(0,0,0), backdrop_alpha=90
+    )
 
-    y = int(H * 0.16)
-    for line in verse_wrapped.split("\n"):
-        h = _draw_line(line, y, font_verse, (255, 255, 255))
-        y += h + 8
-
-    y += 40
-    for line in reflection_wrapped.split("\n"):
-        h = _draw_line(line, y, font_reflection, (235, 235, 235))
-        y += h + 6
-
+    # Reflection (smaller)
+    r_draw = ImageDraw.Draw(img, "RGBA")
+    r_font, r_lines, r_line_h = _auto_fit_block(
+        r_draw, reflection,
+        target_w=refl_box[2]-refl_box[0],
+        target_h=refl_box[3]-refl_box[1],
+        max_size=int(w*0.05),   # ~5% width starting point
+        font_path=FONT_PATH
+    )
+    _draw_block_with_backdrop(
+        r_draw, (refl_box[0], refl_box[1]),
+        r_lines, r_font, r_line_h,
+        pad=14, stroke=2, fill=(235,235,235), stroke_fill=(0,0,0), backdrop_alpha=72
+    )
     return img
+
+def _draw_block_with_backdrop(draw, xy, lines, font, line_h,
+                              stroke=2, fill=(255,255,255), stroke_fill=(0,0,0),
+                              pad=16, backdrop_alpha=90):
+    """Translucent rectangle behind text + stroked text for high contrast."""
+    x, y = xy
+    widths = [draw.textlength(l, font=font) for l in lines] if lines else [0]
+    block_w = int(max(widths)) if widths else 0
+    block_h = int(len(lines) * (line_h + math.ceil(font.size * 0.25)))
+
+    if block_w > 0 and block_h > 0 and backdrop_alpha > 0:
+        rect = [x - pad, y - pad, x + block_w + pad, y + block_h + pad]
+        draw.rectangle(rect, fill=(0, 0, 0, backdrop_alpha))
+
+    cy = y
+    for l in lines:
+        draw.text((x, cy), l, font=font, fill=fill, stroke_width=stroke, stroke_fill=stroke_fill)
+        cy += line_h + math.ceil(font.size * 0.25)
 
 # -----------------------------
 # MAIN
