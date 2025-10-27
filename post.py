@@ -387,11 +387,21 @@ if __name__ == "__main__":
     # 1) Text via Gemini (large max tokens, no fallback)
     verse, reflection = generate_verse_and_reflection()
 
-    # 2) Image via Stability
-    img_bytes = generate_image_bytes(
-        f"{THEME}, {TONE}, {STYLE}, instagram composition, detailed, high quality"
-    )
-    base_img = Image.open(BytesIO(img_bytes)).convert("RGB")
+    # 2) Image via Stability (context-aware prompt)
+quote_meaning = verse.strip("“”\"").split()[0:6]  # first few words to hint theme
+quote_hint = " ".join(quote_meaning)
+
+img_prompt = (
+    f"Concept art inspired by themes of {THEME}; "
+    f"visualize the feeling of the quote '{quote_hint}' "
+    f"without any written text. "
+    f"Style: {STYLE}. "
+    f"High-contrast, richly textured, professional Instagram composition, "
+    f"evoking mood and atmosphere, realistic lighting, cinematic depth of field."
+)
+
+img_bytes = generate_image_bytes(img_prompt)
+
 
     # 3) Optional overlay
     final_img = draw_centered_text(base_img, verse, reflection) if OVERLAY_TEXT_ON_IMAGE else base_img
