@@ -26,6 +26,32 @@ if not GEMINI_KEY:
     raise RuntimeError("Missing GEMINI_API_KEY")
 if not STABILITY_KEY:
     raise RuntimeError("Missing STABILITY_API_KEY")
+    
+# -----------------------------
+# STYLE FAMILIES (theme → visual aesthetic)
+# -----------------------------
+STYLE_FAMILIES = {
+    "ascetic": (
+        "monastic minimalism, aged parchment texture, muted warm light, "
+        "meditative atmosphere, candlelight shadows, classical composition"
+    ),
+    "warrior": (
+        "cinematic chiaroscuro, metal and stone texture, dramatic contrast, "
+        "embers and dust, determination, dynamic lighting"
+    ),
+    "contemplative": (
+        "soft focus, natural light through fog, tranquil balance, "
+        "subtle color harmony, zen-like simplicity"
+    ),
+    "visionary": (
+        "ethereal glow, sunrise tones, clarity and optimism, "
+        "spacious composition, bright volumetric light, hopeful atmosphere"
+    ),
+    "mystical": (
+        "deep indigo palette, star-lit ambience, sacred geometry hints, "
+        "symbolic surrealism, dreamlike textures"
+    ),
+}
 
 # -----------------------------
 # GEMINI (no fallbacks, fail-fast)
