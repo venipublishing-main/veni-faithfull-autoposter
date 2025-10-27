@@ -1,35 +1,35 @@
 #!/usr/bin/env python3
-import os, json, base64, textwrap, re
+import os, json, base64, textwrap, math
 from datetime import datetime
 import requests
 from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 
-# -----------------------------
+# ======================================================
 # CONFIGURATION
-# -----------------------------
+# ======================================================
 OUT_DIR = "out"
 FONT_PATH = "assets/fonts/IMFellEnglishSC-Regular.ttf"
 OVERLAY_TEXT_ON_IMAGE = True  # set False to post clean image without text overlay
 
-# You can override these by setting GitHub env vars
-THEME = os.getenv("THEME", "discipline, focus, perseverance")
+# Environment / defaults
+THEME = os.getenv("THEME", "discipline, focus, perseverance").lower()
 TONE  = os.getenv("TONE",  "motivational, concise, modern")
 STYLE = os.getenv("STYLE", "dark minimalist aesthetic, cinematic lighting")
 
-GEMINI_KEY       = os.getenv("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL     = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
-GEMINI_MAX_TOKENS = int(os.getenv("GEMINI_MAX_TOKENS", "800"))  # large allowance
-STABILITY_KEY    = os.getenv("STABILITY_API_KEY", "").strip()
+GEMINI_KEY        = os.getenv("GEMINI_API_KEY", "").strip()
+GEMINI_MODEL      = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+GEMINI_MAX_TOKENS = int(os.getenv("GEMINI_MAX_TOKENS", "800"))
+STABILITY_KEY     = os.getenv("STABILITY_API_KEY", "").strip()
 
 if not GEMINI_KEY:
     raise RuntimeError("Missing GEMINI_API_KEY")
 if not STABILITY_KEY:
     raise RuntimeError("Missing STABILITY_API_KEY")
-    
-# -----------------------------
+
+# ======================================================
 # STYLE FAMILIES (theme → visual aesthetic)
-# -----------------------------
+# ======================================================
 STYLE_FAMILIES = {
     "ascetic": (
         "monastic minimalism, aged parchment texture, muted warm light, "
@@ -53,14 +53,22 @@ STYLE_FAMILIES = {
     ),
 }
 
-# -----------------------------
-# GEMINI (no fallbacks, fail-fast)
-# -----------------------------
+# Assign STYLE dynamically based on THEME keywords
+if "discipline" in THEME or "ascetic" in THEME:
+    STYLE = STYLE_FAMILIES["ascetic"]
+elif "focus" in THEME or "warrior" in THEME or "perseverance" in THEME:
+    STYLE = STYLE_FAMILIES["warrior"]
+elif "reflection" in THEME or "mind" in THEME or "thought" in THEME:
+    STYLE = STYLE_FAMILIES["contemplative"]
+elif "vision" in THEME or "light" in THEME or "clarity" in THEME:
+    STYLE = STYLE_FAMILIES["visionary"]
+else:
+    STYLE = STYLE_FAMILIES["mystical"]
+
+# ======================================================
+# GEMINI TEXT GENERATION
+# ======================================================
 def _gemini_call(text: str, max_tokens: int, temperature: float = 0.5) -> str:
-    """
-    Single call to Gemini v1beta. Large maxOutputTokens; no retries or backups.
-    Raises with a clear message if no text or MAX_TOKENS occurs.
-    """
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
     payload = {
         "contents": [{"role": "user", "parts": [{"text": text}]}],
@@ -74,26 +82,17 @@ def _gemini_call(text: str, max_tokens: int, temperature: float = 0.5) -> str:
     if r.status_code >= 400:
         raise RuntimeError(f"Gemini HTTP {r.status_code}: {r.text[:400]}")
     data = r.json()
-
-    # Typical: candidates[0].content.parts[].text
     cand0 = (data.get("candidates") or [{}])[0]
     finish = cand0.get("finishReason")
     parts = cand0.get("content", {}).get("parts", [])
     txt = "".join(p.get("text", "") for p in parts).strip()
-
     if not txt:
         if finish == "MAX_TOKENS":
-            raise RuntimeError(
-                f"Gemini hit MAX_TOKENS before emitting text. "
-                f"Increase GEMINI_MAX_TOKENS (currently {max_tokens}) or shorten the prompt.\n"
-                f"Raw shape: {str(data)[:400]}"
-            )
-        raise RuntimeError(f"Gemini returned no text. Raw shape: {str(data)[:400]}")
-
+            raise RuntimeError("Gemini hit MAX_TOKENS before emitting text.")
+        raise RuntimeError("Gemini returned no text.")
     return txt
 
-def _first_json_object(s: str) -> str | None:
-    """Extract first well-formed {...} substring by brace counting."""
+def _first_json_object(s: str):
     start = s.find("{")
     if start == -1:
         return None
@@ -109,7 +108,6 @@ def _first_json_object(s: str) -> str | None:
     return None
 
 def _try_parse_single(obj):
-    """Return (quote, reflection) if dict has both; else None."""
     if not isinstance(obj, dict):
         return None
     q = (obj.get("quote") or "").strip()
@@ -119,11 +117,6 @@ def _try_parse_single(obj):
     return None
 
 def _coerce_to_single(json_text: str):
-    """
-    Accept a dict or [dict]; otherwise try to extract the first {...}.
-    No further calls to Gemini; fail-fast if still invalid.
-    """
-    # Direct parse
     try:
         data = json.loads(json_text)
         if isinstance(data, list) and data:
@@ -136,39 +129,23 @@ def _coerce_to_single(json_text: str):
                 return parsed
     except json.JSONDecodeError:
         pass
-
-    # Try first {...}
     frag = _first_json_object(json_text)
     if frag:
-        data = json.loads(frag)  # if this fails, let it raise
+        data = json.loads(frag)
         parsed = _try_parse_single(data)
         if parsed:
             return parsed
-
-    # As a last structural check, confirm keys are present (still fail-fast)
-    if '"quote"' in json_text and '"reflection"' in json_text:
-        raise RuntimeError(
-            "Gemini responded with text containing the keys but invalid JSON structure. "
-            "Inspect the response or adjust the prompt to ensure valid JSON."
-        )
-
-    raise RuntimeError(
-        "Gemini did not return a valid single JSON object with keys "
-        '"quote" and "reflection".'
-    )
+    raise RuntimeError("Gemini did not return valid JSON with 'quote' and 'reflection'.")
 
 def generate_verse_and_reflection():
     prompt = (
         f"Write ONE short Christian quote and ONE short reflection about {THEME}.\n"
-        "Return ONLY a single JSON object (no arrays, no extra keys, no prose):\n"
+        "Return ONLY a JSON object:\n"
         '{ "quote": "<≤16 words, typographic quotes like “...”>", '
         '"reflection": "<1 sentence, ≤36 words, no hashtags>" }'
     )
-
-    raw = _gemini_call(prompt, max_tokens=GEMINI_MAX_TOKENS, temperature=0.5)
+    raw = _gemini_call(prompt, GEMINI_MAX_TOKENS, temperature=0.5)
     quote, refl = _coerce_to_single(raw)
-
-    # Guardrails: quotes and lengths (local, not a fallback)
     q = quote.strip()
     if not q.startswith(("“", "\"")):
         q = "“" + q.strip('“"').strip()
@@ -176,44 +153,34 @@ def generate_verse_and_reflection():
         q = q.rstrip('”" ').rstrip(".!,;:") + "”"
     if len(q.split()) > 16:
         q = " ".join(q.split()[:16]).rstrip(".!,;:") + "”"
-
     words = refl.split()
     if len(words) > 36:
         refl = " ".join(words[:36]).rstrip(".!,;:") + "."
-
     return q, refl
 
-# -----------------------------
-# STABILITY IMAGE GENERATION (resilient + no-text)
-# -----------------------------
+# ======================================================
+# STABILITY IMAGE GENERATION
+# ======================================================
 def generate_image_bytes(prompt, width=1024, height=1024):
     import random
-
-    # Allow override from env; else try a safe fallback list
     primary_engine = os.getenv("STABILITY_ENGINE", "stable-diffusion-v1-6")
     fallback_engines = [
-        primary_engine,                        # env-pinned first
-        "stable-diffusion-v1-5",               # older but common
-        "stable-diffusion-xl-1024-v1-0",       # XL route (still supports JSON base64 with this path)
+        primary_engine,
+        "stable-diffusion-v1-5",
+        "stable-diffusion-xl-1024-v1-0",
     ]
-
     negative = (
         "text, letters, typography, captions, watermark, logo, signature, words, "
         "flat plain background, low detail, low contrast, artifacts"
     )
-
-    headers = {
-        "Authorization": f"Bearer {STABILITY_KEY}",
-        "Accept": "application/json",
-    }
-
+    headers = {"Authorization": f"Bearer {STABILITY_KEY}", "Accept": "application/json"}
     last_err = None
     for engine in fallback_engines:
         url = f"https://api.stability.ai/v1/generation/{engine}/text-to-image"
         body = {
             "text_prompts": [
                 {"text": f"{prompt}, no text, no typography, clean background"},
-                {"text": negative, "weight": -1.2}
+                {"text": negative, "weight": -1.2},
             ],
             "cfg_scale": 7,
             "width": width,
@@ -231,83 +198,15 @@ def generate_image_bytes(prompt, width=1024, height=1024):
             return base64.b64decode(data["artifacts"][0]["base64"])
         except Exception as e:
             last_err = e
-            # Print a short server message (if any) to logs for troubleshooting
             try:
                 print(f"[Stability] Engine '{engine}' failed: {r.status_code} {r.text[:200]}")
             except Exception:
                 print(f"[Stability] Engine '{engine}' failed: {e}")
-
     raise RuntimeError(f"All Stability engines failed. Last error: {last_err}")
 
-
-# -----------------------------
-# TEXT OVERLAY (auto-fit + backdrop)
-# -----------------------------
-import math
-
-def _load_font(path, size):
-    try:
-        return ImageFont.truetype(path, size)
-    except Exception:
-        # Fallback to a common runner font or default
-        try:
-            return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size)
-        except Exception:
-            return ImageFont.load_default()
-
-def _wrap_to_width(draw, text, font, max_w):
-    lines, cur = [], []
-    for word in text.split():
-        test = (" ".join(cur + [word])).strip()
-        w = draw.textlength(test, font=font)
-        if w <= max_w or not cur:
-            cur.append(word)
-        else:
-            lines.append(" ".join(cur))
-            cur = [word]
-    if cur:
-        lines.append(" ".join(cur))
-    return lines
-
-def _auto_fit_block(draw, text, target_w, target_h, max_size, min_size=18, step=2, font_path=FONT_PATH):
-    size = max_size
-    while size >= min_size:
-        font = _load_font(font_path, size)
-        lines = _wrap_to_width(draw, text, font, target_w)
-        if not lines:
-            size -= step
-            continue
-        # Calculate total height with line spacing ~0.25*size
-        line_h = font.getbbox("Ay")[3] - font.getbbox("Ay")[1]
-        total_h = int(len(lines) * (line_h + math.ceil(size * 0.25)))
-        max_line_w = max(draw.textlength(l, font=font) for l in lines)
-        if total_h <= target_h and max_line_w <= target_w:
-            return font, lines, line_h
-        size -= step
-    # Fallback
-    font = _load_font(font_path, min_size)
-    lines = _wrap_to_width(draw, text, font, target_w)
-    line_h = font.getbbox("Ay")[3] - font.getbbox("Ay")[1]
-    return font, lines, line_h
-
-def _apply_bottom_gradient(img, strength=220):
-    """Subtle bottom gradient (transparent→black) for readability."""
-    w, h = img.size
-    grad = Image.new("L", (1, h), 0)
-    for i in range(h):
-        t = max(0, (i - int(h*0.55)) / (h*0.45))  # start ~55% down
-        val = int((t**1.8) * strength)
-        grad.putpixel((0, i), val)
-    alpha = grad.resize((w, h))
-    black = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    black.putalpha(alpha)
-    return Image.alpha_composite(img.convert("RGBA"), black).convert("RGB")
-
-# -----------------------------
-# TEXT OVERLAY: quote only
-# -----------------------------
-import math
-
+# ======================================================
+# TEXT OVERLAY (quote only)
+# ======================================================
 def _load_font(path, size):
     try:
         return ImageFont.truetype(path, size)
@@ -382,20 +281,15 @@ def draw_centered_text(img, verse, reflection):
     img = _apply_bottom_gradient(img)
     w, h = img.size
     draw = ImageDraw.Draw(img, "RGBA")
-
-    # Safe margins & a larger middle band for the quote
     margin = int(w * 0.08)
-    # Center-ish box (from ~22% to ~78% height) so single block sits nicely
     verse_box = (margin, int(h*0.22), w - margin, int(h*0.78))
-
     v_font, v_lines, v_line_h = _auto_fit_block(
         draw, verse,
         target_w=verse_box[2]-verse_box[0],
         target_h=verse_box[3]-verse_box[1],
-        max_size=int(w*0.10),     # slightly bigger since it's the only text
+        max_size=int(w*0.10),
         font_path=FONT_PATH
     )
-
     _draw_block_with_backdrop(
         draw, (verse_box[0], verse_box[1]),
         v_lines, v_font, v_line_h,
@@ -403,31 +297,27 @@ def draw_centered_text(img, verse, reflection):
     )
     return img
 
-
-# -----------------------------
+# ======================================================
 # MAIN
-# -----------------------------
+# ======================================================
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    # 1) Text via Gemini (large max tokens, no fallback)
+    # 1) Text via Gemini
     verse, reflection = generate_verse_and_reflection()
 
     # 2) Image via Stability (context-aware prompt)
-quote_meaning = verse.strip("“”\"").split()[0:6]  # first few words to hint theme
-quote_hint = " ".join(quote_meaning)
-
-img_prompt = (
-    f"Concept art inspired by themes of {THEME}; "
-    f"visualize the feeling of the quote '{quote_hint}' "
-    f"without any written text. "
-    f"Style: {STYLE}. "
-    f"High-contrast, richly textured, professional Instagram composition, "
-    f"evoking mood and atmosphere, realistic lighting, cinematic depth of field."
-)
-
-img_bytes = generate_image_bytes(img_prompt)
-
+    quote_meaning = verse.strip("“”\"").split()[0:6]
+    quote_hint = " ".join(quote_meaning)
+    img_prompt = (
+        f"Concept art inspired by themes of {THEME}; "
+        f"visualize the feeling of the quote '{quote_hint}' without any written text. "
+        f"Visual style: {STYLE}. "
+        f"High-contrast, richly textured, professional Instagram composition, "
+        f"evoking mood and atmosphere, realistic lighting, cinematic depth of field."
+    )
+    img_bytes = generate_image_bytes(img_prompt)
+    base_img = Image.open(BytesIO(img_bytes)).convert("RGB")
 
     # 3) Optional overlay
     final_img = draw_centered_text(base_img, verse, reflection) if OVERLAY_TEXT_ON_IMAGE else base_img
@@ -441,12 +331,9 @@ img_bytes = generate_image_bytes(img_prompt)
     # 5) Caption + payload
     hashtags = "#Discipline #Focus #Perseverance #DailyMotivation"
     caption = f"{verse}\n\n{reflection}\n\n{hashtags}"
-
     repo = os.getenv("GITHUB_REPOSITORY", "") or "owner/repo"
     image_url = f"https://raw.githubusercontent.com/{repo}/main/{out_path.replace(os.sep, '/')}"
-
     payload = {"image_url": image_url, "caption": caption}
     with open("post_payload.json", "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
-
     print(f"✅ Generated {out_path}\n{caption}")
