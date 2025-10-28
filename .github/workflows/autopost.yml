@@ -19,6 +19,7 @@ jobs:
       STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: gemini-2.5-flash
+      GEMINI_MAX_TOKENS: 240
       ATTRIBUTION_MODE: hybrid
       BIBLE_TRANSLATION: auto
       LIBRARY_PATH: assets/veni_library.json
