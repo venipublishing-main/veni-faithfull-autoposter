@@ -520,7 +520,7 @@ if __name__ == "__main__":
 
         # 5) Overlay (quote + attribution) or clean image
         if OVERLAY_TEXT_ON_IMAGE and overlay_ok:
-            final_img = draw_quote_and_attrib(base_img, f"“{quote_text.strip('“”"')}”", attribution)
+            final_img = draw_quote_and_attrib(base_img, "“" + quote_text.strip("“”\"") + "”", attribution)
         else:
             final_img = base_img
 
