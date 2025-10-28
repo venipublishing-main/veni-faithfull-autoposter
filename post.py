@@ -534,16 +534,16 @@ if __name__ == "__main__":
         hashtags = "#Discipline #Focus #Perseverance #DailyMotivation"
 
         # Generate a short closing line (safe to fail silently)
-            closer = gemini_closer(quote_text, kind)
-            closer_block = f"\n{closer}" if closer else ""
+        closer = gemini_closer(quote_text, kind)
+        closer_block = f"\n{closer}" if closer else ""
 
         caption = (
-                    f"“{quote_text.strip('“”\"')}”\n"
-                    f"{attribution}\n\n"
-                    f"{reflection}"
-                    f"{closer_block}\n\n"
-                    f"{hashtags}"
-                )
+        f"“{quote_text.strip('“”\"')}”\n"
+        f"{attribution}\n\n"
+        f"{reflection}"
+        f"{closer_block}\n\n"
+        f"{hashtags}"
+        )
 
         # 8) Payload
         repo = os.getenv("GITHUB_REPOSITORY", "") or "owner/repo"
