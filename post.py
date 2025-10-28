@@ -135,24 +135,25 @@ def select_entry(library, theme, history, days, prefer_overlay=True):
 # ======================================================
 def gemini_reflection(text_for_context: str, ref_or_author: str, kind: str) -> str:
     """
-    one-sentence reflection (<=36 words), avoiding restating the text.
-    kind: "bible" | "historical" | "original"
+    1–3 sentences, ≤ ~70 words total, expanding on the meaning.
+    Avoids quoting or paraphrasing the given text.
     """
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
     sys = (
-        "You are writing a concise, contemplative Instagram reflection (1 sentence, 36 words or fewer). "
-        "Do NOT restate or paraphrase the given text. No hashtags or emojis."
+        "You write contemplative Instagram reflections. "
+        "Output 1 to 3 sentences total (no more), at most about 70 words. "
+        "Do NOT restate or quote the provided text. Avoid hashtags and emojis."
     )
     usr = (
         f"Kind: {kind}\n"
         f"Source: {ref_or_author}\n"
         f"Text:\n{text_for_context}\n\n"
-        f"Write ONE sentence (<=36 words) that expands the meaning for modern readers, without quoting the text."
+        f"Write a concise reflection for modern readers. Keep it warm, clear, and practical."
     )
     payload = {
         "systemInstruction": {"role": "system", "parts": [{"text": sys}]},
         "contents": [{"role": "user", "parts": [{"text": usr}]}],
-        "generationConfig": {"temperature": 0.7, "maxOutputTokens": 120}
+        "generationConfig": {"temperature": 0.7, "maxOutputTokens": GEMINI_MAX_TOKENS}
     }
     r = requests.post(url, json=payload, timeout=60)
     r.raise_for_status()
@@ -163,11 +164,53 @@ def gemini_reflection(text_for_context: str, ref_or_author: str, kind: str) -> s
         .get("parts", [{}])[0]
         .get("text", "")
     ).strip()
-    # Truncate if needed
+
+    # Hard cap ~70 words (safety net)
     words = txt.split()
-    if len(words) > 36:
-        txt = " ".join(words[:36]).rstrip(".!,;:") + "."
+    if len(words) > 70:
+        txt = " ".join(words[:70]).rstrip(".!,;:") + "."
     return txt or "Let this truth shape your next step today."
+    
+def gemini_closer(text_for_context: str, kind: str) -> str:
+    """
+    One short closing line (<= 12 words) that invites contemplation or action.
+    No hashtags/emojis. Returns empty string on failure.
+    """
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
+    sys = (
+        "You write a single short closing line for an Instagram caption. "
+        "At most 12 words. No hashtags or emojis."
+    )
+    usr = (
+        f"Kind: {kind}\n"
+        f"Text:\n{text_for_context}\n\n"
+        f"Write ONE short closing line that invites contemplation or gentle action."
+    )
+    payload = {
+        "systemInstruction": {"role": "system", "parts": [{"text": sys}]},
+        "contents": [{"role": "user", "parts": [{"text": usr}]}],
+        "generationConfig": {"temperature": 0.6, "maxOutputTokens": 40}
+    }
+    try:
+        r = requests.post(url, json=payload, timeout=45)
+        r.raise_for_status()
+        data = r.json()
+        line = (
+            (data.get("candidates") or [{}])[0]
+            .get("content", {})
+            .get("parts", [{}])[0]
+            .get("text", "")
+        ).strip()
+        # Trim to 12 words just in case
+        words = line.split()
+        if len(words) > 12:
+            line = " ".join(words[:12]).rstrip(".!,;:") + "."
+        # Guardrail: avoid empty or repeated punctuation
+        if len(line) < 3:
+            return ""
+        return line
+    except Exception:
+        return ""
 
 # ======================================================
 # STABILITY IMAGE GENERATION (resilient + no-text)
@@ -489,7 +532,18 @@ if __name__ == "__main__":
 
         # 7) Caption
         hashtags = "#Discipline #Focus #Perseverance #DailyMotivation"
-        caption = f"“{quote_text.strip('“”\"')}”\n{attribution}\n\n{reflection}\n\n{hashtags}"
+
+        # Generate a short closing line (safe to fail silently)
+            closer = gemini_closer(quote_text, kind)
+            closer_block = f"\n{closer}" if closer else ""
+
+        caption = (
+                    f"“{quote_text.strip('“”\"')}”\n"
+                    f"{attribution}\n\n"
+                    f"{reflection}"
+                    f"{closer_block}\n\n"
+                    f"{hashtags}"
+                )
 
         # 8) Payload
         repo = os.getenv("GITHUB_REPOSITORY", "") or "owner/repo"
