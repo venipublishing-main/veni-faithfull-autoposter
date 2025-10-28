@@ -422,7 +422,7 @@ def draw_quote_and_attrib(img, quote_text, attribution):
         backdrop_alpha = 66
 
     # Typography hierarchy
-    q_max = int(w * 0.10)
+    q_max = int(w * 0.085)
     a_ratio = 0.75  # attribution smaller
     q_font, q_lines, q_line_h = _auto_fit_block(
         draw, quote_text, target_w=verse_box[2]-verse_box[0], target_h=int((verse_box[3]-verse_box[1]) * 0.78),
@@ -570,6 +570,13 @@ if __name__ == "__main__":
         hashtags = "#Discipline #Focus #Perseverance #DailyMotivation"
         closer = gemini_closer(quote_text, kind)
         closer_block = ("\n" + closer) if closer else ""
+                # Ensure reflection is present and has at least 2 sentences
+        if not reflection or len(reflection.strip()) < 40 or _count_sentences(reflection) < 2:
+            reflection = (
+                "Let this guide your next step: turn intention into practice, "
+                "practice into character, and character into quiet strength."
+            )
+
         caption = (
             "“" + quote_text.strip("“”\"") + "”\n"
             + attribution + "\n\n"
