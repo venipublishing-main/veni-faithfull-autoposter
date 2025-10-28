@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, json, base64, textwrap, math, random, time, io
+import os, json, base64, textwrap, math, random, time, io, re
 from datetime import datetime, timedelta
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -8,6 +8,17 @@ from io import BytesIO
 # Optional CV libs (required for AI-aware placement)
 import numpy as np
 import cv2
+
+# ======================================================
+# PER-RUN UNIQUENESS SEEDING
+# ======================================================
+RUN_ID = os.getenv("GITHUB_RUN_ID", str(int(time.time())))
+RUN_TAG = RUN_ID[-6:]  # for unique filenames
+try:
+    _seed_digits = "".join(ch for ch in RUN_ID if ch.isdigit())
+    random.seed(int(_seed_digits[-9:]) if _seed_digits else int(time.time()))
+except Exception:
+    random.seed(int(time.time()))
 
 # ======================================================
 # CONFIGURATION
@@ -116,61 +127,54 @@ def is_recent(id_, history, days):
                 continue
     return False
 
-def select_entry(library, theme, history, days, prefer_overlay=True):
-    tags = theme_tags(theme)
-    pool = filter_entries_by_tags(library, tags)
-    # optional: prefer allowed_overlay for image text
-    if prefer_overlay:
-        overlay_pool = [e for e in pool if e.get("allowed_overlay", True)]
-        if overlay_pool:
-            pool = overlay_pool
-    # filter out recent ids
-    pool = [e for e in pool if not is_recent(e.get("id"), history, days)]
-    if not pool:
-        pool = library[:]  # fallback if all are recent
-    return random.choice(pool)
+# ======================================================
+# GEMINI (Reflection + Closer)
+# ======================================================
+def _count_sentences(text: str) -> int:
+    return sum(1 for s in re.split(r"[.!?]+", text) if s.strip())
 
-# ======================================================
-# GEMINI REFLECTION
-# ======================================================
 def gemini_reflection(text_for_context: str, ref_or_author: str, kind: str) -> str:
     """
-    1–3 sentences, ≤ ~70 words total, expanding on the meaning.
-    Avoids quoting or paraphrasing the given text.
+    Aim for 2–3 sentences, about 60–100 words total. One retry if too short.
     """
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
     sys = (
         "You write contemplative Instagram reflections. "
-        "Output 1 to 3 sentences total (no more), at most about 70 words. "
+        "Output 2 to 3 sentences total, about 60–100 words. "
         "Do NOT restate or quote the provided text. Avoid hashtags and emojis."
     )
-    usr = (
-        f"Kind: {kind}\n"
-        f"Source: {ref_or_author}\n"
-        f"Text:\n{text_for_context}\n\n"
-        f"Write a concise reflection for modern readers. Keep it warm, clear, and practical."
-    )
-    payload = {
-        "systemInstruction": {"role": "system", "parts": [{"text": sys}]},
-        "contents": [{"role": "user", "parts": [{"text": usr}]}],
-        "generationConfig": {"temperature": 0.7, "maxOutputTokens": GEMINI_MAX_TOKENS}
-    }
-    r = requests.post(url, json=payload, timeout=60)
-    r.raise_for_status()
-    data = r.json()
-    txt = (
-        (data.get("candidates") or [{}])[0]
-        .get("content", {})
-        .get("parts", [{}])[0]
-        .get("text", "")
-    ).strip()
+    def _call(temp=0.7):
+        usr = (
+            f"Kind: {kind}\n"
+            f"Source: {ref_or_author}\n"
+            f"Text:\n{text_for_context}\n\n"
+            f"Write a reflection for modern readers. Warm, clear, and practical."
+        )
+        payload = {
+            "systemInstruction": {"role": "system", "parts": [{"text": sys}]},
+            "contents": [{"role": "user", "parts": [{"text": usr}]}],
+            "generationConfig": {"temperature": temp, "maxOutputTokens": GEMINI_MAX_TOKENS}
+        }
+        r = requests.post(url, json=payload, timeout=60)
+        r.raise_for_status()
+        data = r.json()
+        txt = (
+            (data.get("candidates") or [{}])[0]
+            .get("content", {})
+            .get("parts", [{}])[0]
+            .get("text", "")
+        ).strip()
+        return txt
 
-    # Hard cap ~70 words (safety net)
+    txt = _call(0.7)
+    if _count_sentences(txt) < 2:
+        txt = _call(0.6)  # one gentle retry
+
     words = txt.split()
-    if len(words) > 70:
-        txt = " ".join(words[:70]).rstrip(".!,;:") + "."
+    if len(words) > 110:
+        txt = " ".join(words[:110]).rstrip(".!,;:") + "."
     return txt or "Let this truth shape your next step today."
-    
+
 def gemini_closer(text_for_context: str, kind: str) -> str:
     """
     One short closing line (<= 12 words) that invites contemplation or action.
@@ -201,11 +205,9 @@ def gemini_closer(text_for_context: str, kind: str) -> str:
             .get("parts", [{}])[0]
             .get("text", "")
         ).strip()
-        # Trim to 12 words just in case
         words = line.split()
         if len(words) > 12:
             line = " ".join(words[:12]).rstrip(".!,;:") + "."
-        # Guardrail: avoid empty or repeated punctuation
         if len(line) < 3:
             return ""
         return line
@@ -213,9 +215,9 @@ def gemini_closer(text_for_context: str, kind: str) -> str:
         return ""
 
 # ======================================================
-# STABILITY IMAGE GENERATION (resilient + no-text)
+# STABILITY IMAGE GENERATION (resilient + no-text) with per-run seed
 # ======================================================
-def generate_image_bytes(prompt, width=1024, height=1024):
+def generate_image_bytes(prompt, width=1024, height=1024, seed=None):
     primary_engine = os.getenv("STABILITY_ENGINE", "stable-diffusion-v1-6")
     fallback_engines = [primary_engine, "stable-diffusion-v1-5", "stable-diffusion-xl-1024-v1-0"]
     negative = (
@@ -226,6 +228,7 @@ def generate_image_bytes(prompt, width=1024, height=1024):
     last_err = None
     for engine in fallback_engines:
         url = f"https://api.stability.ai/v1/generation/{engine}/text-to-image"
+        seed_value = seed if isinstance(seed, int) else random.randint(1, 2_147_483_000)
         body = {
             "text_prompts": [
                 {"text": f"{prompt}, no text, no typography, clean background"},
@@ -235,7 +238,7 @@ def generate_image_bytes(prompt, width=1024, height=1024):
             "width": width,
             "height": height,
             "samples": 1,
-            "seed": random.randint(1, 2_147_483_000),
+            "seed": seed_value,
         }
         try:
             r = requests.post(url, headers=headers, json=body, timeout=120)
@@ -381,7 +384,6 @@ def _pick_text_colors(img, rect):
     x1, y1, x2, y2 = rect
     region = img.crop((x1, y1, x2, y2)).resize((1,1), Image.BOX)
     r, g, b = region.getpixel((0,0))
-    # luma
     luma = 0.2126*r + 0.7152*g + 0.0722*b
     if luma < 110:
         fill = (245, 245, 245)   # light text
@@ -391,13 +393,13 @@ def _pick_text_colors(img, rect):
         shadow = (0, 0, 0, 80)
     return fill, shadow
 
-def _rounded_backdrop(mask_size, rect, radius=40, alpha=84):
+def _rounded_backdrop(mask_size, rect, radius=40, alpha=66):
     w, h = mask_size
     mask = Image.new("L", (w, h), 0)
     draw = ImageDraw.Draw(mask)
     x1, y1, x2, y2 = rect
     draw.rounded_rectangle([x1, y1, x2, y2], radius=radius, fill=alpha)
-    mask = mask.filter(ImageFilter.GaussianBlur(2.0))
+    mask = mask.filter(ImageFilter.GaussianBlur(3.0))  # softer feather
     return mask
 
 def draw_quote_and_attrib(img, quote_text, attribution):
@@ -408,6 +410,17 @@ def draw_quote_and_attrib(img, quote_text, attribution):
     verse_box = _find_best_text_box(img, box_rel=(0.78, 0.36), margin_rel=0.08)
     fill, shadow = _pick_text_colors(img, verse_box)
 
+    # Adaptive backdrop opacity based on local brightness
+    x1, y1, x2, y2 = verse_box
+    region = img.crop((x1, y1, x2, y2)).convert("L").resize((1,1), Image.BOX)
+    avg = region.getpixel((0,0)) / 255.0
+    if avg > 0.75:
+        backdrop_alpha = 96
+    elif avg < 0.35:
+        backdrop_alpha = 54
+    else:
+        backdrop_alpha = 66
+
     # Typography hierarchy
     q_max = int(w * 0.10)
     a_ratio = 0.75  # attribution smaller
@@ -415,7 +428,6 @@ def draw_quote_and_attrib(img, quote_text, attribution):
         draw, quote_text, target_w=verse_box[2]-verse_box[0], target_h=int((verse_box[3]-verse_box[1]) * 0.78),
         max_size=q_max, font_path=FONT_PATH
     )
-    # Attribution gets remaining space beneath quote
     attrib_max = max(18, int(q_font.size * a_ratio))
     a_font, a_lines, a_line_h = _auto_fit_block(
         draw, attribution, target_w=verse_box[2]-verse_box[0], target_h=int((verse_box[3]-verse_box[1]) * 0.22),
@@ -431,7 +443,7 @@ def draw_quote_and_attrib(img, quote_text, attribution):
         max(draw.textlength(l, font=a_font) for l in a_lines) if a_lines else 0
     )) + pad*2, verse_box[1] + q_block_h + a_block_h + pad*3)
 
-    mask = _rounded_backdrop((w, h), rect, radius=40, alpha=84)
+    mask = _rounded_backdrop((w, h), rect, radius=40, alpha=backdrop_alpha)
     overlay = Image.new("RGBA", (w, h), (0,0,0,0))
     overlay.putalpha(mask)
     img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
@@ -445,7 +457,6 @@ def draw_quote_and_attrib(img, quote_text, attribution):
         draw.text((x, y), line, font=q_font, fill=fill)
         y += q_line_h + math.ceil(q_font.size * 0.25)
     y += pad // 2
-    # attribution slightly letter-spaced (simple trick: add thin spaces)
     attrib_vis = attribution.replace(" ", "  ")
     for line in _wrap_to_width(draw, attrib_vis, a_font, rect[2]-rect[0]-pad*2):
         draw.text((x+1, y+1), line, font=a_font, fill=(0,0,0,90))
@@ -466,15 +477,33 @@ if __name__ == "__main__":
     library = load_json(LIBRARY_PATH, default=[])
     history = load_json(HISTORY_PATH, default=[])
 
-    # 1) Select entry (Hybrid) or fallback to AI text if library missing
+    # 1) Select entry (Hybrid) or error if library missing
     if ATTRIBUTION_MODE == "hybrid" and library:
-        entry = select_entry(library, THEME, history, NO_REPEAT_DAYS, prefer_overlay=True)
+        # Build candidate pool (so we can pick an alternate if needed)
+        tags = theme_tags(THEME)
+        pool = filter_entries_by_tags(library, tags)
+        overlay_pool = [e for e in pool if e.get("allowed_overlay", True)]
+        if overlay_pool:
+            pool = overlay_pool
+        pool = [e for e in pool if not is_recent(e.get("id"), history, NO_REPEAT_DAYS)]
+        if not pool:
+            pool = library[:]
+
+        random.shuffle(pool)
+        entry = pool[0]
+        last_id = history[-1]["id"] if history else None
+        if last_id and entry.get("id") == last_id and len(pool) > 1:
+            entry = pool[1]
+
+        # EARLY history write (prevents same selection on quick reruns)
+        history.append({"id": entry.get("id"), "ts": datetime.utcnow().isoformat()})
+        save_json(HISTORY_PATH, history)
+
         kind = entry.get("kind", "bible")
 
         if kind == "bible":
             ref = entry.get("ref", "")
             trans = entry.get("translations", {})
-            # choose translation
             t_pref = BIBLE_TRANSLATION
             text = None
             if t_pref == "KJV":
@@ -503,12 +532,12 @@ if __name__ == "__main__":
         # 2) Reflection via Gemini
         reflection = gemini_reflection(quote_text, attribution.lstrip("— ").strip(), kind)
 
-        # 3) Style (theme-mapped, but allow verse style_hint to override)
+        # 3) Style (theme-mapped, allow style_hint override)
         style = pick_style_from_theme(THEME)
         if entry.get("style_hint"):
             style = STYLE_FAMILIES.get(entry["style_hint"], style)
 
-        # 4) Image via Stability (context-aware prompt)
+        # 4) Image via Stability (context-aware prompt) with per-run seed
         hint = " ".join(quote_text.split()[:6])
         img_prompt = (
             f"Concept art inspired by themes of {THEME}; "
@@ -516,7 +545,13 @@ if __name__ == "__main__":
             f"Visual style: {style}. High-contrast, richly textured, "
             f"cinematic depth of field, professional Instagram composition."
         )
-        img_bytes = generate_image_bytes(img_prompt)
+        try:
+            base_seed = int(("".join(ch for ch in RUN_ID if ch.isdigit()))[-9:])
+        except Exception:
+            base_seed = random.randint(1, 2_147_483_000)
+        img_seed = (base_seed + random.randint(1, 100_000)) % 2_147_483_000
+
+        img_bytes = generate_image_bytes(img_prompt, seed=img_seed)
         base_img = Image.open(BytesIO(img_bytes)).convert("RGB")
 
         # 5) Overlay (quote + attribution) or clean image
@@ -525,20 +560,16 @@ if __name__ == "__main__":
         else:
             final_img = base_img
 
-        # 6) Save output
+        # 6) Save output (unique filename per run)
         today = datetime.utcnow().strftime("%Y-%m-%d")
-        filename = f"{today}.jpg"
+        filename = f"{today}-{RUN_TAG}.jpg"
         out_path = os.path.join(OUT_DIR, filename)
         final_img.save(out_path, "JPEG", quality=95)
 
-                # 7) Caption
+        # 7) Caption: Quote → Reflection → Closer
         hashtags = "#Discipline #Focus #Perseverance #DailyMotivation"
-
-        # Generate a short closing line (safe to fail silently)
         closer = gemini_closer(quote_text, kind)
         closer_block = ("\n" + closer) if closer else ""
-
-        # Build caption using only string concatenation (no f-strings → no escape issues)
         caption = (
             "“" + quote_text.strip("“”\"") + "”\n"
             + attribution + "\n\n"
@@ -554,9 +585,7 @@ if __name__ == "__main__":
         with open("post_payload.json", "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
 
-        # 9) Update history
-        history.append({"id": entry.get("id"), "ts": datetime.utcnow().isoformat()})
-        # prune history older than 60 days
+        # 9) Prune history (older than 60 days)
         cutoff = datetime.utcnow() - timedelta(days=60)
         history = [h for h in history if datetime.fromisoformat(h["ts"]) >= cutoff]
         save_json(HISTORY_PATH, history)
@@ -564,7 +593,6 @@ if __name__ == "__main__":
         print(f"✅ Generated {out_path}\n{caption}")
 
     else:
-        # Fallback to AI-only quote + reflection (previous behavior)
         raise RuntimeError(
             "Hybrid mode requested but library not found or empty. "
             "Ensure assets/veni_library.json exists with entries."
