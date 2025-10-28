@@ -44,6 +44,12 @@ GEMINI_MODEL      = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
 GEMINI_MAX_TOKENS = int(os.getenv("GEMINI_MAX_TOKENS", "400"))
 STABILITY_KEY     = os.getenv("STABILITY_API_KEY", "").strip()
 
+# === Instagram Story publishing (optional) ===
+IG_USER_ID      = os.getenv("IG_USER_ID", "").strip()
+IG_ACCESS_TOKEN = os.getenv("IG_ACCESS_TOKEN", "").strip()
+POST_STORY      = os.getenv("POST_STORY", "false").lower() == "true"
+STORY_CAPTION   = os.getenv("STORY_CAPTION", "New post is live — tap profile").strip()
+
 if not GEMINI_KEY:
     raise RuntimeError("Missing GEMINI_API_KEY")
 if not STABILITY_KEY:
@@ -466,6 +472,54 @@ def draw_quote_and_attrib(img, quote_text, attribution):
     return img
 
 # ======================================================
+# IG STORY PUBLISH HELPERS
+# ======================================================
+def ig_publish_story(ig_user_id: str, access_token: str, image_url: str, caption: str = "") -> str:
+    """
+    Create an Instagram Story container from a public image URL and publish it.
+    Returns the Story media ID on success. Raises on failure.
+    """
+    # 1) Create a media container for a Story
+    create_res = requests.post(
+        f"https://graph.facebook.com/v21.0/{ig_user_id}/media",
+        data={
+            "image_url": image_url,
+            "caption": caption,
+            "media_type": "STORIES",  # Stories via Content Publishing API
+            "access_token": access_token,
+        },
+        timeout=30,
+    )
+    create_res.raise_for_status()
+    creation_id = (create_res.json() or {}).get("id")
+    if not creation_id:
+        raise RuntimeError(f"Failed to create Story container: {create_res.text}")
+
+    # 2) (Optional) brief poll; images are usually instant
+    for _ in range(8):
+        status = requests.get(
+            f"https://graph.facebook.com/v21.0/{creation_id}",
+            params={"fields": "status", "access_token": access_token},
+            timeout=15,
+        )
+        status.raise_for_status()
+        if (status.json() or {}).get("status") == "FINISHED":
+            break
+        time.sleep(1)
+
+    # 3) Publish the Story
+    pub_res = requests.post(
+        f"https://graph.facebook.com/v21.0/{ig_user_id}/media_publish",
+        data={"creation_id": creation_id, "access_token": access_token},
+        timeout=30,
+    )
+    pub_res.raise_for_status()
+    story_id = (pub_res.json() or {}).get("id")
+    if not story_id:
+        raise RuntimeError(f"Failed to publish Story: {pub_res.text}")
+    return story_id
+
+# ======================================================
 # MAIN
 # ======================================================
 if __name__ == "__main__":
@@ -570,7 +624,7 @@ if __name__ == "__main__":
         hashtags = "#Discipline #Focus #Perseverance #DailyMotivation"
         closer = gemini_closer(quote_text, kind)
         closer_block = ("\n" + closer) if closer else ""
-                # Ensure reflection is present and has at least 2 sentences
+        # Ensure reflection is present and has at least 2 sentences
         if not reflection or len(reflection.strip()) < 40 or _count_sentences(reflection) < 2:
             reflection = (
                 "Let this guide your next step: turn intention into practice, "
@@ -591,6 +645,21 @@ if __name__ == "__main__":
         payload = {"image_url": image_url, "caption": caption}
         with open("post_payload.json", "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
+
+        # 8.5) Optional: Publish a Story using the same image URL
+        if POST_STORY and IG_USER_ID and IG_ACCESS_TOKEN:
+            try:
+                story_id = ig_publish_story(
+                    ig_user_id=IG_USER_ID,
+                    access_token=IG_ACCESS_TOKEN,
+                    image_url=image_url,      # reuse the feed image URL
+                    caption=STORY_CAPTION
+                )
+                print(f"[story] Published Story ID: {story_id}")
+            except Exception as e:
+                print(f"[story] Warning: Story publish failed: {e}")
+        else:
+            print("[story] Skipped (POST_STORY is false or IG creds not set)")
 
         # 9) Prune history (older than 60 days)
         cutoff = datetime.utcnow() - timedelta(days=60)
