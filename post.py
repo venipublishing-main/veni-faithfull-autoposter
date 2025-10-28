@@ -530,19 +530,20 @@ if __name__ == "__main__":
         out_path = os.path.join(OUT_DIR, filename)
         final_img.save(out_path, "JPEG", quality=95)
 
-        # 7) Caption
+                # 7) Caption
         hashtags = "#Discipline #Focus #Perseverance #DailyMotivation"
 
         # Generate a short closing line (safe to fail silently)
         closer = gemini_closer(quote_text, kind)
-        closer_block = f"\n{closer}" if closer else ""
+        closer_block = ("\n" + closer) if closer else ""
 
+        # Build caption using only string concatenation (no f-strings → no escape issues)
         caption = (
-        f"“{quote_text.strip('“”\"')}”\n"
-        f"{attribution}\n\n"
-        f"{reflection}"
-        f"{closer_block}\n\n"
-        f"{hashtags}"
+            "“" + quote_text.strip("“”\"") + "”\n"
+            + attribution + "\n\n"
+            + reflection
+            + closer_block + "\n\n"
+            + hashtags
         )
 
         # 8) Payload
