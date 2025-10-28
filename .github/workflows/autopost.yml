@@ -19,8 +19,17 @@ jobs:
       STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: gemini-2.5-flash
+      ATTRIBUTION_MODE: hybrid
+      BIBLE_TRANSLATION: auto
+      LIBRARY_PATH: assets/veni_library.json
+      NO_REPEAT_DAYS: "21"
 
     steps:
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pillow requests numpy opencv-python-headless
+          
       - name: Checkout
         uses: actions/checkout@v4
 
