@@ -1,0 +1,138 @@
+[
+  {
+    "id": "prov-3-5",
+    "kind": "bible",
+    "ref": "Proverbs 3:5",
+    "translations": {
+      "KJV": "Trust in the LORD with all thine heart; and lean not unto thine own understanding."
+    },
+    "tags": ["trust","faith","focus","guidance"],
+    "style_hint": "contemplative",
+    "allowed_overlay": true
+  },
+  {
+    "id": "ps-23-1",
+    "kind": "bible",
+    "ref": "Psalm 23:1",
+    "translations": {
+      "KJV": "The LORD is my shepherd; I shall not want."
+    },
+    "tags": ["trust","provision","peace"],
+    "style_hint": "contemplative",
+    "allowed_overlay": true
+  },
+  {
+    "id": "phil-4-13",
+    "kind": "bible",
+    "ref": "Philippians 4:13",
+    "translations": {
+      "KJV": "I can do all things through Christ which strengtheneth me."
+    },
+    "tags": ["strength","perseverance","discipline"],
+    "style_hint": "warrior",
+    "allowed_overlay": true
+  },
+  {
+    "id": "isa-40-31",
+    "kind": "bible",
+    "ref": "Isaiah 40:31",
+    "translations": {
+      "KJV": "But they that wait upon the LORD shall renew their strength; they shall mount up with wings as eagles; they shall run, and not be weary; and they shall walk, and not faint."
+    },
+    "tags": ["hope","perseverance","renewal"],
+    "style_hint": "visionary",
+    "allowed_overlay": false
+  },
+  {
+    "id": "josh-1-9",
+    "kind": "bible",
+    "ref": "Joshua 1:9",
+    "translations": {
+      "KJV": "Be strong and of a good courage; be not afraid, neither be thou dismayed: for the LORD thy God is with thee whithersoever thou goest."
+    },
+    "tags": ["courage","presence","perseverance"],
+    "style_hint": "warrior",
+    "allowed_overlay": true
+  },
+  {
+    "id": "ps-46-10",
+    "kind": "bible",
+    "ref": "Psalm 46:10",
+    "translations": {
+      "KJV": "Be still, and know that I am God:"
+    },
+    "tags": ["stillness","focus","faith"],
+    "style_hint": "contemplative",
+    "allowed_overlay": true
+  },
+  {
+    "id": "rom-12-12",
+    "kind": "bible",
+    "ref": "Romans 12:12",
+    "translations": {
+      "KJV": "Rejoicing in hope; patient in tribulation; continuing instant in prayer;"
+    },
+    "tags": ["perseverance","hope","prayer"],
+    "style_hint": "ascetic",
+    "allowed_overlay": true
+  },
+  {
+    "id": "mt-11-28",
+    "kind": "bible",
+    "ref": "Matthew 11:28",
+    "translations": {
+      "KJV": "Come unto me, all ye that labour and are heavy laden, and I will give you rest."
+    },
+    "tags": ["rest","mercy","care"],
+    "style_hint": "mystical",
+    "allowed_overlay": true
+  },
+  {
+    "id": "aug-confess-10-27",
+    "kind": "historical",
+    "author": "Augustine of Hippo",
+    "text": "You have made us for Yourself, O Lord, and our heart is restless until it rests in You.",
+    "source_note": "Confessions (public domain translations)",
+    "tags": ["rest","faith","longing","hope"],
+    "style_hint": "contemplative",
+    "allowed_overlay": true
+  },
+  {
+    "id": "ta-kempis-imit-1-25",
+    "kind": "historical",
+    "author": "Thomas à Kempis",
+    "text": "Great is the love of Jesus—known to only those who love Him above all things.",
+    "source_note": "The Imitation of Christ (public domain)",
+    "tags": ["love","devotion","ascetic"],
+    "style_hint": "ascetic",
+    "allowed_overlay": true
+  },
+  {
+    "id": "francis-peace-prayer",
+    "kind": "historical",
+    "author": "Francis of Assisi",
+    "text": "Where there is charity and wisdom, there is neither fear nor ignorance.",
+    "source_note": "Admonitions (public domain)",
+    "tags": ["charity","wisdom","peace"],
+    "style_hint": "contemplative",
+    "allowed_overlay": true
+  },
+  {
+    "id": "orig-discipline-001",
+    "kind": "original",
+    "text": "Discipline is love that keeps its promises in quiet hours.",
+    "source_note": "Veni original",
+    "tags": ["discipline","perseverance","focus"],
+    "style_hint": "ascetic",
+    "allowed_overlay": true
+  },
+  {
+    "id": "orig-focus-001",
+    "kind": "original",
+    "text": "Focus is the art of saying a better yes.",
+    "source_note": "Veni original",
+    "tags": ["focus","clarity","wisdom"],
+    "style_hint": "visionary",
+    "allowed_overlay": true
+  }
+]
