@@ -257,14 +257,15 @@ def generate_image_bytes(prompt, width=1024, height=1024):
 # AI-AWARE LAYOUT (saliency + brightness + golden ratio)
 # ======================================================
 def _saliency_like(gray_u8: np.ndarray) -> np.ndarray:
-    lap = cv2.Laplian(gray_u8, cv2.CV_32F, ksize=3)  # typo intentional? fix to Laplacian
-    # Correct spelling:
+    """
+    Fast saliency-ish map using Laplacian + Sobel energy, smoothed and normalized to [0,1].
+    """
     lap = cv2.Laplacian(gray_u8, cv2.CV_32F, ksize=3)
     gx  = cv2.Sobel(gray_u8, cv2.CV_32F, 1, 0, ksize=3)
     gy  = cv2.Sobel(gray_u8, cv2.CV_32F, 0, 1, ksize=3)
     sob = cv2.magnitude(gx, gy)
     sal = 0.6 * np.abs(lap) + 0.4 * sob
-    sal = cv2.GaussianBlur(sal, (0,0), 3)
+    sal = cv2.GaussianBlur(sal, (0, 0), 3)
     sal -= sal.min()
     if sal.max() > 1e-6:
         sal /= sal.max()
