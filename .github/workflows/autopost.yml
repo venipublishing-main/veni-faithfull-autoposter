@@ -12,7 +12,6 @@ jobs:
   post:
     runs-on: ubuntu-latest
 
-    # Secrets/env available to all steps
     env:
       IG_TOKEN: ${{ secrets.IG_TOKEN }}
       IG_USER_ID: ${{ secrets.IG_USER_ID }}
@@ -26,11 +25,6 @@ jobs:
       NO_REPEAT_DAYS: "21"
 
     steps:
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pillow requests numpy opencv-python-headless
-          
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -42,9 +36,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pillow requests
-
-      # (Removed HF validation step)
+          pip install pillow requests numpy opencv-python-headless
 
       - name: Generate image & caption payload
         run: |
@@ -71,7 +63,7 @@ jobs:
           IG_USER_ID = os.environ['IG_USER_ID']
 
           with open('post_payload.json', 'r', encoding='utf-8') as f:
-            payload = json.load(f)
+              payload = json.load(f)
 
           image_url = payload['image_url']
           caption = payload['caption']
@@ -79,9 +71,9 @@ jobs:
           # Step 1: Create container
           create_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media"
           r = requests.post(create_url, data={
-            "image_url": image_url,
-            "caption": caption,
-            "access_token": IG_TOKEN
+              "image_url": image_url,
+              "caption": caption,
+              "access_token": IG_TOKEN
           }, timeout=30)
           print("Create status:", r.status_code, r.text)
           r.raise_for_status()
@@ -91,8 +83,8 @@ jobs:
           time.sleep(5)
           publish_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media_publish"
           r2 = requests.post(publish_url, data={
-            "creation_id": creation_id,
-            "access_token": IG_TOKEN
+              "creation_id": creation_id,
+              "access_token": IG_TOKEN
           }, timeout=30)
           print("Publish status:", r2.status_code, r2.text)
           r2.raise_for_status()
