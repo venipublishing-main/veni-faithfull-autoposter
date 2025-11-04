@@ -29,6 +29,11 @@ STATE_DIR = "state"
 LIBRARY_PATH = os.getenv("LIBRARY_PATH", f"{ASSETS_DIR}/veni_library.json")
 HISTORY_PATH = f"{STATE_DIR}/history.json"
 
+# --- New free-mode toggles ---
+IMAGE_MODE = os.getenv("IMAGE_MODE", "auto").lower()          # auto | typography
+IMAGE_PROVIDER = os.getenv("IMAGE_PROVIDER", "stability")      # reserved for future multi-provider use
+FALLBACK_FONT_PATH = os.getenv("FALLBACK_FONT_PATH", "assets/fonts/IMFellEnglishSC-Regular.ttf")
+
 FONT_PATH = "assets/fonts/IMFellEnglishSC-Regular.ttf"
 OVERLAY_TEXT_ON_IMAGE = True  # toggle to post clean image if False
 
@@ -43,6 +48,7 @@ GEMINI_KEY        = os.getenv("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL      = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
 GEMINI_MAX_TOKENS = int(os.getenv("GEMINI_MAX_TOKENS", "400"))
 STABILITY_KEY     = os.getenv("STABILITY_API_KEY", "").strip()
+STABILITY_ENGINE  = os.getenv("STABILITY_ENGINE", "stable-diffusion-xl-1024-v1-0").strip()
 
 # === Instagram Story publishing (optional) ===
 IG_USER_ID      = os.getenv("IG_USER_ID", "").strip()
@@ -52,8 +58,7 @@ STORY_CAPTION   = os.getenv("STORY_CAPTION", "New post is live — tap profile")
 
 if not GEMINI_KEY:
     raise RuntimeError("Missing GEMINI_API_KEY")
-if not STABILITY_KEY:
-    raise RuntimeError("Missing STABILITY_API_KEY")
+# NOTE: STABILITY_API_KEY is OPTIONAL now (free local fallback covers $0 mode)
 
 # ======================================================
 # STYLE FAMILIES (theme → visual aesthetic)
@@ -221,18 +226,95 @@ def gemini_closer(text_for_context: str, kind: str) -> str:
         return ""
 
 # ======================================================
-# STABILITY IMAGE GENERATION (resilient + no-text) with per-run seed
+# FREE LOCAL BACKGROUND (no external API)
 # ======================================================
-def generate_image_bytes(prompt, width=1024, height=1024, seed=None):
-    primary_engine = os.getenv("STABILITY_ENGINE", "stable-diffusion-v1-6")
-    fallback_engines = [primary_engine, "stable-diffusion-v1-5", "stable-diffusion-xl-1024-v1-0"]
+def _load_font(path, size):
+    try:
+        return ImageFont.truetype(path, size)
+    except Exception:
+        try:
+            return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size)
+        except Exception:
+            return ImageFont.load_default()
+
+def _wrap_to_width(draw, text, font, max_w):
+    lines, cur = [], []
+    for word in text.split():
+        test = (" ".join(cur + [word])).strip()
+        w = draw.textlength(test, font=font)
+        if w <= max_w or not cur:
+            cur.append(word)
+        else:
+            lines.append(" ".join(cur)); cur = [word]
+    if cur:
+        lines.append(" ".join(cur))
+    return lines
+
+def _auto_fit_block(draw, text, target_w, target_h, max_size, min_size=18, step=2, font_path=FALLBACK_FONT_PATH):
+    size = max_size
+    while size >= min_size:
+        font = _load_font(font_path, size)
+        lines = _wrap_to_width(draw, text, font, target_w)
+        if not lines:
+            size -= step; continue
+        line_h = font.getbbox("Ay")[3] - font.getbbox("Ay")[1]
+        total_h = int(len(lines) * (line_h + math.ceil(size * 0.25)))
+        max_line_w = max(draw.textlength(l, font=font) for l in lines)
+        if total_h <= target_h and max_line_w <= target_w:
+            return font, lines, line_h
+        size -= step
+    font = _load_font(font_path, min_size)
+    lines = _wrap_to_width(draw, text, font, target_w)
+    line_h = font.getbbox("Ay")[3] - font.getbbox("Ay")[1]
+    return font, lines, line_h
+
+def _apply_vignette(im, strength=0.4):
+    W, H = im.size
+    vign = Image.new("L", (W, H), 0)
+    vdraw = ImageDraw.Draw(vign)
+    vdraw.ellipse([-W*0.2, -H*0.2, W*1.2, H*1.2], fill=int(220*strength))
+    vign = vign.filter(ImageFilter.GaussianBlur(int(min(W, H)*0.12)))
+    im = Image.composite(im, Image.new("RGB", (W,H), (0,0,0)), vign)
+    return im
+
+def _free_background(width=1024, height=1024):
+    # Subtle radial gradient + noise; theme nudges hue
+    base = Image.new("RGB", (width, height), (22, 24, 32))
+    grad = Image.new("L", (width, height), 0)
+    g = ImageDraw.Draw(grad)
+    cx, cy = width//2, height//2
+    maxr = int((width**2 + height**2) ** 0.5)//2
+    for r in range(0, maxr, 8):
+        val = min(255, int(60 + r*0.6))
+        g.ellipse([cx-r, cy-r, cx+r, cy+r], fill=val)
+    grad = grad.filter(ImageFilter.GaussianBlur(45))
+    tint = (34, 36, 48)
+    if "warrior" in THEME or "persever" in THEME:
+        tint = (38, 34, 36)
+    elif "vision" in THEME or "hope" in THEME:
+        tint = (40, 44, 54)
+    elif "mystic" in THEME or "indigo" in THEME:
+        tint = (28, 30, 44)
+    bg = Image.composite(Image.new("RGB", (width,height), tint), base, grad)
+    # subtle noise
+    noise = Image.effect_noise((width,height), 8).convert("L")
+    bg = Image.blend(bg, Image.merge("RGB",(noise,noise,noise)), 0.08)
+    # vignette
+    bg = _apply_vignette(bg, strength=0.35)
+    return bg
+
+# ======================================================
+# STABILITY IMAGE GENERATION (optional, with fallback)
+# ======================================================
+def _stability_generate(prompt, width=1024, height=1024, seed=None):
+    engines = [STABILITY_ENGINE]  # keep single known-good; deprecated engines removed
     negative = (
         "text, letters, typography, captions, watermark, logo, signature, words, "
         "flat plain background, low detail, low contrast, artifacts"
     )
     headers = {"Authorization": f"Bearer {STABILITY_KEY}", "Accept": "application/json"}
     last_err = None
-    for engine in fallback_engines:
+    for engine in engines:
         url = f"https://api.stability.ai/v1/generation/{engine}/text-to-image"
         seed_value = seed if isinstance(seed, int) else random.randint(1, 2_147_483_000)
         body = {
@@ -249,7 +331,7 @@ def generate_image_bytes(prompt, width=1024, height=1024, seed=None):
         try:
             r = requests.post(url, headers=headers, json=body, timeout=120)
             if r.status_code == 404:
-                print(f"[Stability] 404 for engine '{engine}' — trying next fallback…")
+                print(f"[Stability] 404 for engine '{engine}' — skipping.")
                 continue
             r.raise_for_status()
             data = r.json()
@@ -260,7 +342,36 @@ def generate_image_bytes(prompt, width=1024, height=1024, seed=None):
                 print(f"[Stability] Engine '{engine}' failed: {r.status_code} {r.text[:200]}")
             except Exception:
                 print(f"[Stability] Engine '{engine}' failed: {e}")
-    raise RuntimeError(f"All Stability engines failed. Last error: {last_err}")
+    if last_err:
+        raise last_err
+    raise RuntimeError("Stability generation failed without explicit error.")
+
+def generate_image_bytes(prompt, width=1024, height=1024, seed=None):
+    """
+    Returns JPEG bytes for the base image.
+    - If IMAGE_MODE == 'typography' OR no STABILITY_KEY: free local background.
+    - Else try Stability once; on any error, fall back to free local background.
+    """
+    # Free mode or no API key → local background
+    if IMAGE_MODE == "typography" or not STABILITY_KEY:
+        print("[image] Using FREE local background (typography mode or no Stability key).")
+        bg = _free_background(width, height)
+        out = BytesIO()
+        bg.save(out, "JPEG", quality=92)
+        out.seek(0)
+        return out.read()
+
+    # Paid attempt (if configured)
+    try:
+        img = _stability_generate(prompt, width=width, height=height, seed=seed)
+        return img
+    except Exception as e:
+        print(f"[image] Stability failed ({e}); falling back to FREE local background.")
+        bg = _free_background(width, height)
+        out = BytesIO()
+        bg.save(out, "JPEG", quality=92)
+        out.seek(0)
+        return out.read()
 
 # ======================================================
 # AI-AWARE LAYOUT (saliency + brightness + golden ratio)
@@ -334,46 +445,6 @@ def _find_best_text_box(pil_img, box_rel=(0.78, 0.36), margin_rel=0.08):
 # ======================================================
 # TYPOGRAPHY & RENDER
 # ======================================================
-def _load_font(path, size):
-    try:
-        return ImageFont.truetype(path, size)
-    except Exception:
-        try:
-            return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size)
-        except Exception:
-            return ImageFont.load_default()
-
-def _wrap_to_width(draw, text, font, max_w):
-    lines, cur = [], []
-    for word in text.split():
-        test = (" ".join(cur + [word])).strip()
-        w = draw.textlength(test, font=font)
-        if w <= max_w or not cur:
-            cur.append(word)
-        else:
-            lines.append(" ".join(cur)); cur = [word]
-    if cur:
-        lines.append(" ".join(cur))
-    return lines
-
-def _auto_fit_block(draw, text, target_w, target_h, max_size, min_size=18, step=2, font_path=FONT_PATH):
-    size = max_size
-    while size >= min_size:
-        font = _load_font(font_path, size)
-        lines = _wrap_to_width(draw, text, font, target_w)
-        if not lines:
-            size -= step; continue
-        line_h = font.getbbox("Ay")[3] - font.getbbox("Ay")[1]
-        total_h = int(len(lines) * (line_h + math.ceil(size * 0.25)))
-        max_line_w = max(draw.textlength(l, font=font) for l in lines)
-        if total_h <= target_h and max_line_w <= target_w:
-            return font, lines, line_h
-        size -= step
-    font = _load_font(font_path, min_size)
-    lines = _wrap_to_width(draw, text, font, target_w)
-    line_h = font.getbbox("Ay")[3] - font.getbbox("Ay")[1]
-    return font, lines, line_h
-
 def _apply_bottom_gradient(img, strength=220):
     w, h = img.size
     grad = Image.new("L", (1, h), 0)
@@ -591,7 +662,7 @@ if __name__ == "__main__":
         if entry.get("style_hint"):
             style = STYLE_FAMILIES.get(entry["style_hint"], style)
 
-        # 4) Image via Stability (context-aware prompt) with per-run seed
+        # 4) Image generation (paid if available → free fallback)
         hint = " ".join(quote_text.split()[:6])
         img_prompt = (
             f"Concept art inspired by themes of {THEME}; "
