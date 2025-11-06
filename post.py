@@ -31,7 +31,7 @@ HISTORY_PATH = f"{STATE_DIR}/history.json"
 
 # --- New free-mode toggles ---
 IMAGE_MODE = os.getenv("IMAGE_MODE", "auto").lower()          # auto | typography
-IMAGE_PROVIDER = os.getenv("IMAGE_PROVIDER", "stability")      # reserved for future multi-provider use
+IMAGE_PROVIDER = os.getenv("IMAGE_PROVIDER", "stability")     # reserved for future multi-provider use
 FALLBACK_FONT_PATH = os.getenv("FALLBACK_FONT_PATH", "assets/fonts/IMFellEnglishSC-Regular.ttf")
 
 FONT_PATH = "assets/fonts/IMFellEnglishSC-Regular.ttf"
@@ -138,15 +138,46 @@ def is_recent(id_, history, days):
                 continue
     return False
 
+def _entry_id(e):
+    """Stable synthetic ID if 'id' missing (prevents repeats)."""
+    if e.get("id"):
+        return str(e["id"])
+    kind = (e.get("kind") or "").lower()
+    if kind == "bible":
+        key = (e.get("ref") or "").strip()
+    else:
+        key = (e.get("text") or "").strip()[:120]
+    return str(abs(hash(kind + "|" + key)))
+
 # ======================================================
 # GEMINI (Reflection + Closer)
 # ======================================================
 def _count_sentences(text: str) -> int:
     return sum(1 for s in re.split(r"[.!?]+", text) if s.strip())
 
+def _fallback_reflection(quote_text: str) -> str:
+    """Deterministic, varied backup lines when Gemini returns nothing."""
+    candidates = [
+        "Return to the practice. Quiet consistency reshapes the day.",
+        "Hold the line; small faithful steps carry surprising weight.",
+        "Let the next right action be your answer.",
+        "Strength grows where attention meets honesty and care.",
+        "Keep it simple: show up, breathe, do the work.",
+        "Make room for silence; clarity likes uncluttered places.",
+        "Choose steadiness over spectacle. It lasts longer.",
+        "What you repeat, you become. Choose with care.",
+        "Aim for faithful, not flawless.",
+        "Tend the root and the fruit will follow.",
+        "Courage looks ordinary up close: one step, then another.",
+        "Align intention with action and let time do its work.",
+    ]
+    h = abs(hash(quote_text)) % len(candidates)
+    return candidates[h]
+
 def gemini_reflection(text_for_context: str, ref_or_author: str, kind: str) -> str:
     """
-    Aim for 2–3 sentences, about 60–100 words total. One retry if too short.
+    Aim for 2–3 sentences, about 60–100 words total. One retry if too short,
+    then fall back to a varied deterministic line.
     """
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_KEY}"
     sys = (
@@ -177,14 +208,21 @@ def gemini_reflection(text_for_context: str, ref_or_author: str, kind: str) -> s
         ).strip()
         return txt
 
-    txt = _call(0.7)
-    if _count_sentences(txt) < 2:
-        txt = _call(0.6)  # one gentle retry
+    try:
+        txt = _call(0.7)
+        if _count_sentences(txt) < 2:
+            try_txt = _call(0.6)  # gentle retry
+            txt = try_txt if _count_sentences(try_txt) >= 2 else ""
+    except Exception:
+        txt = ""
+
+    if not txt:
+        txt = _fallback_reflection(text_for_context)
 
     words = txt.split()
     if len(words) > 110:
         txt = " ".join(words[:110]).rstrip(".!,;:") + "."
-    return txt or "Let this truth shape your next step today."
+    return txt
 
 def gemini_closer(text_for_context: str, kind: str) -> str:
     """
@@ -268,39 +306,54 @@ def _auto_fit_block(draw, text, target_w, target_h, max_size, min_size=18, step=
     line_h = font.getbbox("Ay")[3] - font.getbbox("Ay")[1]
     return font, lines, line_h
 
-def _apply_vignette(im, strength=0.4):
+def _apply_vignette(im, strength=0.25):
     W, H = im.size
     vign = Image.new("L", (W, H), 0)
     vdraw = ImageDraw.Draw(vign)
-    vdraw.ellipse([-W*0.2, -H*0.2, W*1.2, H*1.2], fill=int(220*strength))
-    vign = vign.filter(ImageFilter.GaussianBlur(int(min(W, H)*0.12)))
-    im = Image.composite(im, Image.new("RGB", (W,H), (0,0,0)), vign)
-    return im
+    vdraw.ellipse([-W*0.2, -H*0.2, W*1.2, H*1.2], fill=int(255*strength))
+    vign = vign.filter(ImageFilter.GaussianBlur(int(min(W, H)*0.10)))
+    return Image.composite(im, Image.new("RGB", (0,0,0)), vign)
 
 def _free_background(width=1024, height=1024):
-    # Subtle radial gradient + noise; theme nudges hue
-    base = Image.new("RGB", (width, height), (22, 24, 32))
+    # Theme-based palettes (midtones; avoids "flat black")
+    palettes = {
+        "ascetic":      ((222,214,192), (196,182,158), (168,153,128)),  # parchment
+        "warrior":      ((78,66,60),    (104,86,78),   (142,102,78)),   # iron/ember
+        "contemplative":((176,194,186), (152,174,166), (128,154,146)),  # sage
+        "visionary":    ((214,222,236), (190,204,228), (166,186,220)),  # dawn blue
+        "mystical":     ((64,72,110),   (82,90,132),   (98,106,150)),   # indigo
+    }
+    # Pick family from THEME
+    key = "mystical"
+    if "ascetic" in THEME or "discipline" in THEME: key = "ascetic"
+    elif "warrior" in THEME or "persever" in THEME: key = "warrior"
+    elif "contempl" in THEME or "peace" in THEME:   key = "contemplative"
+    elif "vision" in THEME or "hope" in THEME:      key = "visionary"
+    c1, c2, c3 = palettes[key]
+
+    # Soft radial gradient
+    base = Image.new("RGB", (width, height), c2)
     grad = Image.new("L", (width, height), 0)
     g = ImageDraw.Draw(grad)
     cx, cy = width//2, height//2
-    maxr = int((width**2 + height**2) ** 0.5)//2
-    for r in range(0, maxr, 8):
-        val = min(255, int(60 + r*0.6))
+    maxr = int((width**2 + height**2)**0.5)//2
+    for r in range(0, maxr, 10):
+        val = min(255, int(80 + r*0.5))  # brighter midtones
         g.ellipse([cx-r, cy-r, cx+r, cy+r], fill=val)
-    grad = grad.filter(ImageFilter.GaussianBlur(45))
-    tint = (34, 36, 48)
-    if "warrior" in THEME or "persever" in THEME:
-        tint = (38, 34, 36)
-    elif "vision" in THEME or "hope" in THEME:
-        tint = (40, 44, 54)
-    elif "mystic" in THEME or "indigo" in THEME:
-        tint = (28, 30, 44)
-    bg = Image.composite(Image.new("RGB", (width,height), tint), base, grad)
-    # subtle noise
-    noise = Image.effect_noise((width,height), 8).convert("L")
-    bg = Image.blend(bg, Image.merge("RGB",(noise,noise,noise)), 0.08)
-    # vignette
-    bg = _apply_vignette(bg, strength=0.35)
+    grad = grad.filter(ImageFilter.GaussianBlur(60))
+    bg = Image.composite(Image.new("RGB", (width,height), c1), base, grad)
+
+    # Diagonal tint blend for interest
+    diag = Image.linear_gradient("L").resize((width, height)).rotate(45, expand=False)
+    diag = diag.point(lambda p: int(p*0.35))
+    bg = Image.composite(Image.new("RGB",(width,height), c3), bg, diag)
+
+    # Subtle paper noise
+    noise = Image.effect_noise((width,height), 7).convert("L")
+    bg = Image.blend(bg, Image.merge("RGB",(noise,noise,noise)), 0.06)
+
+    # Light vignette
+    bg = _apply_vignette(bg, strength=0.18)
     return bg
 
 # ======================================================
@@ -610,18 +663,18 @@ if __name__ == "__main__":
         overlay_pool = [e for e in pool if e.get("allowed_overlay", True)]
         if overlay_pool:
             pool = overlay_pool
-        pool = [e for e in pool if not is_recent(e.get("id"), history, NO_REPEAT_DAYS)]
+        pool = [e for e in pool if not is_recent(_entry_id(e), history, NO_REPEAT_DAYS)]
         if not pool:
             pool = library[:]
 
         random.shuffle(pool)
         entry = pool[0]
         last_id = history[-1]["id"] if history else None
-        if last_id and entry.get("id") == last_id and len(pool) > 1:
+        if last_id and _entry_id(entry) == last_id and len(pool) > 1:
             entry = pool[1]
 
         # EARLY history write (prevents same selection on quick reruns)
-        history.append({"id": entry.get("id"), "ts": datetime.utcnow().isoformat()})
+        history.append({"id": _entry_id(entry), "ts": datetime.utcnow().isoformat()})
         save_json(HISTORY_PATH, history)
 
         kind = entry.get("kind", "bible")
@@ -654,7 +707,7 @@ if __name__ == "__main__":
         words = quote_text.split()
         overlay_ok = entry.get("allowed_overlay", True) and len(words) <= 32
 
-        # 2) Reflection via Gemini
+        # 2) Reflection via Gemini (now with varied fallback)
         reflection = gemini_reflection(quote_text, attribution.lstrip("— ").strip(), kind)
 
         # 3) Style (theme-mapped, allow style_hint override)
@@ -695,12 +748,6 @@ if __name__ == "__main__":
         hashtags = "#Discipline #Focus #Perseverance #DailyMotivation"
         closer = gemini_closer(quote_text, kind)
         closer_block = ("\n" + closer) if closer else ""
-        # Ensure reflection is present and has at least 2 sentences
-        if not reflection or len(reflection.strip()) < 40 or _count_sentences(reflection) < 2:
-            reflection = (
-                "Let this guide your next step: turn intention into practice, "
-                "practice into character, and character into quiet strength."
-            )
 
         caption = (
             "“" + quote_text.strip("“”\"") + "”\n"
