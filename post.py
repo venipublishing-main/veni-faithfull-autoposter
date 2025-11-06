@@ -312,7 +312,7 @@ def _apply_vignette(im, strength=0.25):
     vdraw = ImageDraw.Draw(vign)
     vdraw.ellipse([-W*0.2, -H*0.2, W*1.2, H*1.2], fill=int(255*strength))
     vign = vign.filter(ImageFilter.GaussianBlur(int(min(W, H)*0.10)))
-    return Image.composite(im, Image.new("RGB", (0,0,0)), vign)
+    return Image.composite(im, Image.new("RGB", (W, H), (0, 0, 0)), vign)
 
 def _free_background(width=1024, height=1024):
     # Theme-based palettes (midtones; avoids "flat black")
