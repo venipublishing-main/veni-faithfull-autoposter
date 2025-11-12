@@ -1,138 +1,602 @@
 [
   {
-    "id": "prov-3-5",
-    "kind": "bible",
-    "ref": "Proverbs 3:5",
-    "translations": {
-      "KJV": "Trust in the LORD with all thine heart; and lean not unto thine own understanding."
-    },
-    "tags": ["trust","faith","focus","guidance"],
-    "style_hint": "contemplative",
-    "allowed_overlay": true
+    "file": "001.png",
+    "quote": "“Be still, and know that I am God.” — Psalm 46:10",
+    "reflection": "In the hush of dawn, the soul breathes again. Stillness strips away illusion until only truth remains. When the world falls silent, the Eternal is heard most clearly.",
+    "commentary": "This verse calls us to stop striving and rest in divine presence. Faith is not achieved through effort but through surrender — by allowing quiet to become prayer."
   },
   {
-    "id": "ps-23-1",
-    "kind": "bible",
-    "ref": "Psalm 23:1",
-    "translations": {
-      "KJV": "The LORD is my shepherd; I shall not want."
-    },
-    "tags": ["trust","provision","peace"],
-    "style_hint": "contemplative",
-    "allowed_overlay": true
+    "file": "002.png",
+    "quote": "“In silence, the soul finds its strength.” — St. Teresa of Avila",
+    "reflection": "Silence is not emptiness but fullness unspoken. The spirit gathers power where words end and stillness begins. There, faith roots itself deeply in peace.",
+    "commentary": "St. Teresa reminds us that silence is not weakness but renewal. In quiet moments, courage and clarity take root, preparing us for life’s noise."
   },
   {
-    "id": "phil-4-13",
-    "kind": "bible",
-    "ref": "Philippians 4:13",
-    "translations": {
-      "KJV": "I can do all things through Christ which strengtheneth me."
-    },
-    "tags": ["strength","perseverance","discipline"],
-    "style_hint": "warrior",
-    "allowed_overlay": true
+    "file": "003.png",
+    "quote": "“Let nothing disturb you, let nothing frighten you.” — St. Teresa of Ávila",
+    "reflection": "Fear fades where faith is fixed. The heart anchored in God cannot be shaken. Stillness becomes armor, peace becomes power.",
+    "commentary": "This quote urges calm resilience — not denial of fear but trust beyond it. God’s constancy makes courage possible, even in uncertainty."
   },
   {
-    "id": "isa-40-31",
-    "kind": "bible",
-    "ref": "Isaiah 40:31",
-    "translations": {
-      "KJV": "But they that wait upon the LORD shall renew their strength; they shall mount up with wings as eagles; they shall run, and not be weary; and they shall walk, and not faint."
-    },
-    "tags": ["hope","perseverance","renewal"],
-    "style_hint": "visionary",
-    "allowed_overlay": false
+    "file": "004.png",
+    "quote": "“The desert is not a place but a passage.”",
+    "reflection": "The soul must sometimes cross barren lands to be refined. In the heat of trial, illusions burn away and faith is forged like gold.",
+    "commentary": "The desert symbolizes spiritual testing — the lonely, difficult seasons that purify our motives. It’s not punishment but transformation."
   },
   {
-    "id": "josh-1-9",
-    "kind": "bible",
-    "ref": "Joshua 1:9",
-    "translations": {
-      "KJV": "Be strong and of a good courage; be not afraid, neither be thou dismayed: for the LORD thy God is with thee whithersoever thou goest."
-    },
-    "tags": ["courage","presence","perseverance"],
-    "style_hint": "warrior",
-    "allowed_overlay": true
+    "file": "005.png",
+    "quote": "“He must increase; I must decrease.” — John 3:30",
+    "reflection": "The more we fade, the more divine light fills the void. Humility opens the door for holiness to dwell.",
+    "commentary": "John’s words teach the essence of surrender — to let ego give way so that grace can grow. Greatness is found in letting God take center stage."
   },
   {
-    "id": "ps-46-10",
-    "kind": "bible",
-    "ref": "Psalm 46:10",
-    "translations": {
-      "KJV": "Be still, and know that I am God:"
-    },
-    "tags": ["stillness","focus","faith"],
-    "style_hint": "contemplative",
-    "allowed_overlay": true
+    "file": "006.png",
+    "quote": "“Discipline is the highest form of devotion.”",
+    "reflection": "True worship is not emotion but endurance. The disciplined soul keeps faith when fervor fades, serving love with steady hands.",
+    "commentary": "Discipline here means faithfulness in practice — prayer, work, and patience. Devotion is proven not by feeling inspired but by showing up daily."
   },
   {
-    "id": "rom-12-12",
-    "kind": "bible",
-    "ref": "Romans 12:12",
-    "translations": {
-      "KJV": "Rejoicing in hope; patient in tribulation; continuing instant in prayer;"
-    },
-    "tags": ["perseverance","hope","prayer"],
-    "style_hint": "ascetic",
-    "allowed_overlay": true
+    "file": "007.png",
+    "quote": "“Pray without ceasing.” — 1 Thessalonians 5:17",
+    "reflection": "Let breath itself become prayer; every step an act of faith. In unbroken communion, even silence speaks to heaven.",
+    "commentary": "This verse calls for a living rhythm of prayer — not endless words, but continual awareness of God in every thought and task."
   },
   {
-    "id": "mt-11-28",
-    "kind": "bible",
-    "ref": "Matthew 11:28",
-    "translations": {
-      "KJV": "Come unto me, all ye that labour and are heavy laden, and I will give you rest."
-    },
-    "tags": ["rest","mercy","care"],
-    "style_hint": "mystical",
-    "allowed_overlay": true
+    "file": "008.png",
+    "quote": "“Hunger of the body feeds the spirit.”",
+    "reflection": "To fast is to remember what truly nourishes. When the body is emptied, the soul feasts on grace.",
+    "commentary": "This reflection on fasting reminds us that physical restraint awakens spiritual depth. Hunger can sharpen gratitude and devotion."
   },
   {
-    "id": "aug-confess-10-27",
-    "kind": "historical",
-    "author": "Augustine of Hippo",
-    "text": "You have made us for Yourself, O Lord, and our heart is restless until it rests in You.",
-    "source_note": "Confessions (public domain translations)",
-    "tags": ["rest","faith","longing","hope"],
-    "style_hint": "contemplative",
-    "allowed_overlay": true
+    "file": "009.png",
+    "quote": "“I die daily.” — 1 Corinthians 15:31",
+    "reflection": "Each sunrise invites another small surrender. The soul grows by laying down self again and again. Death to pride becomes life to peace.",
+    "commentary": "Paul’s words speak of renewal through letting go — dying to ego, envy, and control so the Spirit may live through us."
   },
   {
-    "id": "ta-kempis-imit-1-25",
-    "kind": "historical",
-    "author": "Thomas à Kempis",
-    "text": "Great is the love of Jesus—known to only those who love Him above all things.",
-    "source_note": "The Imitation of Christ (public domain)",
-    "tags": ["love","devotion","ascetic"],
-    "style_hint": "ascetic",
-    "allowed_overlay": true
+    "file": "010.png",
+    "quote": "“Faith grows in the soil of solitude.”",
+    "reflection": "Alone with God, the heart finds its roots. Solitude is not absence but communion unbroken by distraction.",
+    "commentary": "This reflection shows that isolation can become sacred space. In solitude, faith matures — not in crowds, but in quiet encounter."
   },
   {
-    "id": "francis-peace-prayer",
-    "kind": "historical",
-    "author": "Francis of Assisi",
-    "text": "Where there is charity and wisdom, there is neither fear nor ignorance.",
-    "source_note": "Admonitions (public domain)",
-    "tags": ["charity","wisdom","peace"],
-    "style_hint": "contemplative",
-    "allowed_overlay": true
+    "file": "011.png",
+    "quote": "“Silence is the speech of eternity.”",
+    "reflection": "Words fade where truth is too vast to name. Silence holds what language cannot — the eternal echo of God.",
+    "commentary": "This reflection reminds us that silence is not empty but divine. Eternity speaks quietly, and listening becomes the purest act of worship."
   },
   {
-    "id": "orig-discipline-001",
-    "kind": "original",
-    "text": "Discipline is love that keeps its promises in quiet hours.",
-    "source_note": "Veni original",
-    "tags": ["discipline","perseverance","focus"],
-    "style_hint": "ascetic",
-    "allowed_overlay": true
+    "file": "012.png",
+    "quote": "“Laborare est orare — To work is to pray.”",
+    "reflection": "The humble rhythm of labor sanctifies the day. Each task, done with love, becomes incense rising heavenward.",
+    "commentary": "This Benedictine principle means holiness is found in ordinary effort. When work is offered to God, even simplicity becomes sacred."
   },
   {
-    "id": "orig-focus-001",
-    "kind": "original",
-    "text": "Focus is the art of saying a better yes.",
-    "source_note": "Veni original",
-    "tags": ["focus","clarity","wisdom"],
-    "style_hint": "visionary",
-    "allowed_overlay": true
+    "file": "013.png",
+    "quote": "“The narrow path leads home.”",
+    "reflection": "Few walk the way of faith, for it winds through hardship and humility. Yet its end is joy beyond imagining.",
+    "commentary": "This line evokes Christ’s teaching that the narrow way is the true way. The difficult road of integrity and love leads to eternal peace."
+  },
+  {
+    "file": "014.png",
+    "quote": "“He who kneels before God can stand before any man.”",
+    "reflection": "The soul that bends in reverence rises unshaken. In surrender lies unbreakable strength.",
+    "commentary": "This saying teaches that humility before God gives courage before the world. True power comes from spiritual submission, not pride."
+  },
+  {
+    "file": "015.png",
+    "quote": "“Fasting is the body’s hymn to heaven.”",
+    "reflection": "The empty plate becomes an altar. In hunger, the spirit learns to sing. Every pang becomes praise.",
+    "commentary": "This poetic image turns fasting into worship — a discipline that transforms longing into devotion and appetite into adoration."
+  },
+  {
+    "file": "016.png",
+    "quote": "“Seek not comfort but clarity.”",
+    "reflection": "Comfort clouds the soul; clarity cleanses it. To see truth clearly, one must first let go of ease.",
+    "commentary": "This reflection challenges us to trade convenience for conviction. Growth begins where complacency ends — clarity over comfort."
+  },
+  {
+    "file": "017.png",
+    "quote": "“Obedience is the root of peace.”",
+    "reflection": "The obedient heart rests easily, for it carries no rebellion. Peace blooms where will aligns with grace.",
+    "commentary": "This line reminds us that obedience to God is freedom, not constraint. When the will is surrendered, turmoil gives way to calm."
+  },
+  {
+    "file": "018.png",
+    "quote": "“Holiness is built, stone by stone.”",
+    "reflection": "Sanctity is slow work. Each act of patience, kindness, and prayer lays another stone in the soul’s cathedral.",
+    "commentary": "This reflection likens spiritual growth to construction — gradual, deliberate, and lasting. True holiness is formed by daily discipline."
+  },
+  {
+    "file": "019.png",
+    "quote": "“When you empty yourself, God fills you.”",
+    "reflection": "Emptiness is invitation. The soul that releases all else becomes a vessel for the infinite.",
+    "commentary": "This reflection reminds us that surrender creates space for divine fullness. When self fades, love overflows."
+  },
+  {
+    "file": "020.png",
+    "quote": "“Night prayer in the heart of silence.”",
+    "reflection": "Darkness deepens devotion; silence turns into song. In the still hours, faith becomes pure light.",
+    "commentary": "This reflection portrays night as sacred — a time when solitude and prayer weave together. Quiet devotion becomes radiant strength."
+  },
+  {
+    "file": "021.png",
+    "quote": "“Faith is not feeling; it is fidelity.”",
+    "reflection": "Feelings rise and fade like the tide, but fidelity stands unmoved. Faith endures when emotion grows silent.",
+    "commentary": "This quote teaches that faith is commitment, not sentiment. True belief persists even in dryness, trusting God through both joy and emptiness."
+  },
+  {
+    "file": "022.png",
+    "quote": "“The cloistered heart beats louder in heaven.”",
+    "reflection": "Hidden lives of devotion echo beyond time. In unseen obedience, the soul learns heaven’s rhythm.",
+    "commentary": "This line honors the quiet saints — those who love in silence. God hears what the world overlooks, and such faith resounds eternally."
+  },
+  {
+    "file": "023.png",
+    "quote": "“We conquer ourselves to follow Christ.”",
+    "reflection": "The fiercest battle is within. Victory comes when pride bows and love commands.",
+    "commentary": "This reflection speaks of inner warfare — self-discipline and humility as paths to true discipleship. The hardest enemy to defeat is the self."
+  },
+  {
+    "file": "024.png",
+    "quote": "“To suffer is to be refined.”",
+    "reflection": "Pain purifies what comfort conceals. Fire reveals the gold hidden in the soul.",
+    "commentary": "This quote reminds us that suffering, when borne with faith, transforms rather than destroys. It shapes character and deepens compassion."
+  },
+  {
+    "file": "025.png",
+    "quote": "“Hearts of stone become hearts of flesh.” — Ezekiel 36:26",
+    "reflection": "Grace softens what grief has hardened. The divine touch turns coldness into compassion.",
+    "commentary": "Ezekiel’s promise reveals God’s power to renew us from within. No heart is beyond healing; mercy makes all things tender again."
+  },
+  {
+    "file": "026.png",
+    "quote": "“Poverty is not lack, but liberty.”",
+    "reflection": "To own nothing is to be owned by nothing. Simplicity frees the soul to love without weight.",
+    "commentary": "This line reframes poverty as spiritual freedom — detachment from possessions, ambition, and fear. True wealth is found in contentment."
+  },
+  {
+    "file": "027.png",
+    "quote": "“The Cross is the compass of the soul.”",
+    "reflection": "When lost, look to the Cross — it points toward love through suffering, and truth through trial.",
+    "commentary": "This metaphor teaches that the Cross guides our direction. It orients life toward sacrifice, humility, and redemption."
+  },
+  {
+    "file": "028.png",
+    "quote": "“Light the lamp of faith.”",
+    "reflection": "Even a single flame can pierce endless dark. Faith’s small light outlasts the storm.",
+    "commentary": "This line urges us to keep belief alive, however faint. Hope, like a candle, grows brighter when tended daily."
+  },
+  {
+    "file": "029.png",
+    "quote": "“Holiness begins in hiddenness.”",
+    "reflection": "The unseen roots of virtue feed the visible bloom. What grows in silence shapes eternity.",
+    "commentary": "This reflection reminds us that spiritual depth is cultivated in private — in prayer, patience, and unseen acts of love."
+  },
+  {
+    "file": "030.png",
+    "quote": "“Kneel. Breathe. Endure.”",
+    "reflection": "Simplicity becomes sanctity. To kneel is to yield, to breathe is to believe, to endure is to love.",
+    "commentary": "This quote distills the monastic path: humility, presence, and perseverance. In these, the soul finds its strength."
+  },
+  {
+    "file": "031.png",
+    "quote": "“Sacrifice sanctifies the soul.”",
+    "reflection": "Every offering refines the heart. In giving what costs us, we draw nearer to the divine.",
+    "commentary": "This reflection reminds us that true holiness is born from self-giving. Sacrifice transforms suffering into love and intention into worship."
+  },
+  {
+    "file": "032.png",
+    "quote": "“When all is stripped away, only truth remains.”",
+    "reflection": "In the bare silence of surrender, illusion falls away. What endures is God alone.",
+    "commentary": "This line speaks of spiritual purification — the shedding of all pretenses until only what is eternal remains. Truth thrives in simplicity."
+  },
+  {
+    "file": "033.png",
+    "quote": "“In humility, heaven descends.”",
+    "reflection": "The lower the heart bows, the closer grace draws. Pride builds walls; humility opens doors to divine light.",
+    "commentary": "This reflection teaches that humility is not weakness but invitation. God meets us most deeply in our quiet surrender."
+  },
+  {
+    "file": "034.png",
+    "quote": "“Stillness is a sword sharper than words.”",
+    "reflection": "The calm soul cuts through chaos. In silence, discernment becomes strength.",
+    "commentary": "This quote suggests that peace is power — silence can reveal truth more effectively than argument. Stillness is strength under control."
+  },
+  {
+    "file": "035.png",
+    "quote": "“From dust to devotion.”",
+    "reflection": "From the earth we rise, by grace we live, and to worship we return. Dust becomes sacred when lifted by love.",
+    "commentary": "This reflection celebrates transformation — that even humble beginnings can become holy when the heart turns toward God."
+  },
+  {
+    "file": "036.png",
+    "quote": "“Put on the full armor of God.” — Ephesians 6:11",
+    "reflection": "The soul is a battlefield, and faith its armor. Truth shields the heart; righteousness steadies the hand.",
+    "commentary": "Paul’s words remind us that spiritual strength is defensive, not destructive — to guard the soul with virtue, not violence."
+  },
+  {
+    "file": "037.png",
+    "quote": "“Courage is born where fear is crucified.”",
+    "reflection": "When fear dies upon the cross of trust, courage rises in its place. The heart that surrenders becomes unbreakable.",
+    "commentary": "This reflection teaches that courage does not deny fear — it transforms it. Faith turns dread into devotion, and trembling into triumph."
+  },
+  {
+    "file": "038.png",
+    "quote": "“Train the spirit as you train the sword.”",
+    "reflection": "The warrior of faith sharpens the heart daily — discipline, prayer, endurance. The unseen battle is the fiercest of all.",
+    "commentary": "This quote calls us to spiritual conditioning: to practice virtue as diligently as skill. Mastery of the self precedes mastery of the fight."
+  },
+  {
+    "file": "039.png",
+    "quote": "“Not by might, but by My Spirit.” — Zechariah 4:6",
+    "reflection": "Strength fades, but Spirit endures. The greatest victories are not won by hands, but by hearts aligned with heaven.",
+    "commentary": "This verse reminds us that divine power surpasses human effort. True success flows through surrender, not domination."
+  },
+  {
+    "file": "040.png",
+    "quote": "“Victory belongs to the steadfast.”",
+    "reflection": "The battle is not to the swift, but to those who do not yield. Endurance outlasts every storm.",
+    "commentary": "This reflection teaches perseverance — the quiet heroism of remaining faithful. The steadfast soul wins by standing firm in truth."
+  },
+  {
+    "file": "041.png",
+    "quote": "“Faith is the weapon that never dulls.”",
+    "reflection": "Doubt may strike, but faith endures sharp and shining. Every prayer hones its edge.",
+    "commentary": "This line turns faith into armor and blade — resilience forged in trust. No darkness can blunt the edge of belief."
+  },
+  {
+    "file": "042.png",
+    "quote": "“Discipline is love in armor.”",
+    "reflection": "Love, clothed in discipline, stands unshaken. Commitment is compassion made strong.",
+    "commentary": "This reflection reframes discipline as an act of care — to train the self so that love may serve longer and stand taller."
+  },
+  {
+    "file": "043.png",
+    "quote": "“The lion of faith fears no storm.”",
+    "reflection": "The roaring heart of belief stands calm before thunder. Its courage is not noise but knowing.",
+    "commentary": "This quote evokes boldness rooted in peace. Faith does not silence storms — it stands firm within them."
+  },
+  {
+    "file": "044.png",
+    "quote": "“The meek inherit the battlefield.”",
+    "reflection": "The gentlest hearts win the truest wars — not through conquest, but surrender.",
+    "commentary": "This reflection reminds us that meekness is not weakness. Strength guided by mercy reshapes every conflict into peace."
+  },
+  {
+    "file": "045.png",
+    "quote": "“Your scars are your psalms.”",
+    "reflection": "Every wound healed becomes a hymn. Suffering sung back to God turns pain into praise.",
+    "commentary": "This line transforms scars into testimony. The warrior’s faith is measured not by avoidance of battle, but by the grace that follows it."
+  },
+  {
+    "file": "046.png",
+    "quote": "“The heavens declare the glory of God.” — Psalm 19:1",
+    "reflection": "The stars speak without sound, their light a hymn to the Infinite. Every spark in the sky is a syllable of praise.",
+    "commentary": "This verse reminds us that creation itself is revelation. Nature becomes scripture for the soul willing to listen with wonder."
+  },
+  {
+    "file": "047.png",
+    "quote": "“I saw eternity the other night.” — Henry Vaughan",
+    "reflection": "Time dissolved into light, and the soul glimpsed home. Eternity is nearer than our breath, shimmering beyond the veil.",
+    "commentary": "Vaughan’s vision invites us to see the eternal woven into the moment. Heaven is not distant — it pulses quietly within the now."
+  },
+  {
+    "file": "048.png",
+    "quote": "“Divine love is a river without banks.”",
+    "reflection": "Love flows beyond measure, carving its way through every heart. It cannot be contained, only received.",
+    "commentary": "This reflection reminds us that divine love surpasses all boundaries. It moves freely, cleansing and carrying us toward unity."
+  },
+  {
+    "file": "049.png",
+    "quote": "“The Spirit prays where words end.”",
+    "reflection": "When language fails, love continues. In the hush beyond speech, the soul communes with God.",
+    "commentary": "This quote speaks to prayer beyond expression — when the heart’s ache becomes its own sacred language. Silence becomes intercession."
+  },
+  {
+    "file": "050.png",
+    "quote": "“Creation is God’s silent symphony.”",
+    "reflection": "Every breeze, every dawn, every heartbeat is a note in the divine song. The world hums with hidden harmony.",
+    "commentary": "This reflection reveals nature as worship — a continuous offering of praise. Listening deeply, we hear God’s melody in all things."
+  },
+  {
+    "file": "051.png",
+    "quote": "“God is closer than your own breath.”",
+    "reflection": "The divine dwells not in distance but in nearness. Each inhale is a reminder of presence.",
+    "commentary": "This reflection reminds us that we live within God’s heartbeat. Faith is not pursuit but recognition — discovering the Holy already here."
+  },
+  {
+    "file": "052.png",
+    "quote": "“Light speaks softly to the soul.”",
+    "reflection": "In gentle radiance, truth descends. Illumination is not shouted — it arrives as grace.",
+    "commentary": "This line teaches that enlightenment is tender. God’s wisdom enters quietly, transforming without force, brightening the heart’s hidden corners."
+  },
+  {
+    "file": "053.png",
+    "quote": "“Every tear is a prism for grace.”",
+    "reflection": "Sorrow refracts the light of love. Through pain, mercy shines in new colors.",
+    "commentary": "This reflection teaches that grief is not absence of God but an encounter with His gentleness. Grace bends through tears to reveal beauty."
+  },
+  {
+    "file": "054.png",
+    "quote": "“To see the world in a grain of sand.” — Blake",
+    "reflection": "Infinity hides within the smallest dust. Wonder opens the eye to eternity’s detail.",
+    "commentary": "Blake’s insight reminds us that divinity fills all creation. Nothing is too small to carry glory; perception is the path to awe."
+  },
+  {
+    "file": "055.png",
+    "quote": "“Heaven hides in ordinary moments.”",
+    "reflection": "The sacred does not shout; it lingers in simplicity — in shared bread, in morning light.",
+    "commentary": "This reflection calls us to find holiness in the mundane. The divine often wears the disguise of the familiar, waiting to be noticed."
+  },
+  {
+    "file": "056.png",
+    "quote": "“I saw a new heaven and a new earth.” — Revelation 21:1",
+    "reflection": "The old world fades like mist before morning light. Renewal dawns where faith refuses despair.",
+    "commentary": "This verse proclaims the ultimate hope — that all creation will be restored. The prophet’s vision is not escape, but transformation through divine promise."
+  },
+  {
+    "file": "057.png",
+    "quote": "“The voice of one crying in the wilderness.” — Isaiah 40:3",
+    "reflection": "From solitude rises truth unafraid. The wilderness becomes the womb of revelation.",
+    "commentary": "Isaiah’s cry reminds us that renewal begins in the wild places — when comfort falls silent, the call of purpose grows clear."
+  },
+  {
+    "file": "058.png",
+    "quote": "“Truth is a fire that refines nations.”",
+    "reflection": "Justice burns away deceit, leaving purity behind. Where truth blazes, darkness cannot dwell.",
+    "commentary": "This reflection teaches that truth is not gentle — it purifies through challenge. Transformation demands courage, both personal and collective."
+  },
+  {
+    "file": "059.png",
+    "quote": "“Every generation needs its watchmen.”",
+    "reflection": "Each age must raise voices that do not sleep — hearts awake to warning and hope alike.",
+    "commentary": "This line calls us to vigilance: to see the moral horizon and guard the flame of conscience in times of darkness."
+  },
+  {
+    "file": "060.png",
+    "quote": "“The Spirit shakes the bones of history.”",
+    "reflection": "What once was lifeless begins to move again. Breath returns to forgotten dreams.",
+    "commentary": "This reflection draws from Ezekiel’s vision — revival comes when Spirit stirs what the world declares dead. Renewal is divine rebellion against decay."
+  },
+  {
+    "file": "061.png",
+    "quote": "“Let justice roll down like waters.” — Amos 5:24",
+    "reflection": "Rivers of righteousness carve through stone hearts. Mercy flows where truth finds its course.",
+    "commentary": "Amos’ words are a timeless demand — that faith without justice is hollow. God’s kingdom moves through compassion made concrete."
+  },
+  {
+    "file": "062.png",
+    "quote": "“The trumpet of truth never grows silent.”",
+    "reflection": "Through centuries, the sound still calls the soul to awaken. Truth echoes beyond time’s reach.",
+    "commentary": "This reflection reminds us that truth is eternal — it resounds through prophets, poets, and everyday hearts that dare to speak."
+  },
+  {
+    "file": "063.png",
+    "quote": "“Visions come to those who dare to see.”",
+    "reflection": "Revelation belongs to the brave — to those who open their eyes when others turn away.",
+    "commentary": "This quote calls us to courage in perception. Spiritual vision requires risk: to face what is real and still hope for redemption."
+  },
+  {
+    "file": "064.png",
+    "quote": "“From ruin rises revelation.”",
+    "reflection": "When the temple crumbles, light enters through the cracks. Out of loss, divine wisdom is born.",
+    "commentary": "This reflection reminds us that endings are not empty — God speaks through collapse, revealing purpose beneath pain."
+  },
+  {
+    "file": "065.png",
+    "quote": "“The kingdom is nearer than we think.”",
+    "reflection": "Heaven leans close — in every act of mercy, every quiet prayer. The eternal brushes against the everyday.",
+    "commentary": "This line reminds us that God’s reign begins within hearts, not thrones. The kingdom is not far off; it’s already unfolding among us."
+  },
+  {
+    "file": "066.png",
+    "quote": "“Walk by faith, not by sight.” — 2 Corinthians 5:7",
+    "reflection": "The road ahead is often hidden, yet the heart knows the way. Faith is the map drawn by trust.",
+    "commentary": "This verse reminds us that belief precedes understanding. The journey unfolds as we move — each step reveals what still seemed unseen."
+  },
+  {
+    "file": "067.png",
+    "quote": "“In every step, eternity listens.”",
+    "reflection": "Every footprint echoes through forever. The smallest act of love leaves a trail of light.",
+    "commentary": "This reflection teaches that nothing done in faith is wasted. Our daily walk becomes testimony — each moment heard by heaven."
+  },
+  {
+    "file": "068.png",
+    "quote": "“Grace meets you on the road.”",
+    "reflection": "You need not arrive to be received. Grace travels faster than your weariness.",
+    "commentary": "This line reminds us that God’s mercy meets us mid-journey. We are not loved because we’ve arrived, but because we are still walking."
+  },
+  {
+    "file": "069.png",
+    "quote": "“Faith is not escape, but endurance.”",
+    "reflection": "The true pilgrim does not flee the world — he endures it with courage, carrying hope through the storm.",
+    "commentary": "This reflection calls us to steadfastness. Faith doesn’t remove difficulty; it redeems it by teaching perseverance and peace."
+  },
+  {
+    "file": "070.png",
+    "quote": "“Even in chaos, I am with you.” — Isaiah 41:10",
+    "reflection": "Amid thunder and confusion, presence remains. God stands steady where all else shakes.",
+    "commentary": "This verse promises companionship in turmoil. Faith is not the absence of storms, but assurance within them."
+  },
+  {
+    "file": "071.png",
+    "quote": "“Pilgrimage is not distance but direction.”",
+    "reflection": "The soul’s journey is measured not in miles, but in meaning — every turn toward truth is progress.",
+    "commentary": "This reflection reminds us that pilgrimage is a posture, not a passport. We move nearer to God whenever our hearts align with His will."
+  },
+  {
+    "file": "072.png",
+    "quote": "“Hope leaves footprints.”",
+    "reflection": "Every step taken in trust shapes the path for others to follow. Hope travels farther than we imagine.",
+    "commentary": "This line teaches that faith inspires more than we see. The traces of courage we leave behind become road signs for weary souls."
+  },
+  {
+    "file": "073.png",
+    "quote": "“The sacred hides in the secular.”",
+    "reflection": "The divine lingers in the hum of daily life — in steam rising from coffee, in quiet moments between meetings.",
+    "commentary": "This reflection reminds us that God dwells in ordinary spaces. Spiritual life and daily life are not separate journeys but one sacred road."
+  },
+  {
+    "file": "074.png",
+    "quote": "“Be faithful in the small things.” — Mother Teresa",
+    "reflection": "Greatness begins in the unnoticed. A small kindness becomes a doorway to heaven.",
+    "commentary": "Mother Teresa’s words remind us that holiness hides in humble acts. The sacred grows quietly in the soil of everyday love."
+  },
+  {
+    "file": "075.png",
+    "quote": "“God walks the same streets as we do.”",
+    "reflection": "In crowded cities and empty alleys alike, divinity keeps pace beside us. The sacred never lags behind the secular.",
+    "commentary": "This reflection reminds us that no place is too modern for God. Faith belongs as much to the streets as to the sanctuary."
+  },
+  {
+    "file": "076.png",
+    "quote": "“Faith is rebellion against despair.”",
+    "reflection": "To believe is to defy the darkness. Hope is holy resistance in a weary world.",
+    "commentary": "This reflection reminds us that faith is not passive — it’s the soul’s uprising against hopelessness. Every prayer is an act of quiet revolution."
+  },
+  {
+    "file": "077.png",
+    "quote": "“Your journey is your offering.”",
+    "reflection": "Every mile walked with love becomes worship. The path itself becomes an altar.",
+    "commentary": "This line teaches that God values the process more than arrival. Each struggle, each act of perseverance, is a living prayer."
+  },
+  {
+    "file": "078.png",
+    "quote": "“Every sunrise is an answered prayer.”",
+    "reflection": "Dawn whispers that mercy is renewed. The light we see each morning is grace reborn.",
+    "commentary": "This reflection invites gratitude. Even the ordinary rising of the sun reveals divine faithfulness — a promise repeated daily."
+  },
+  {
+    "file": "079.png",
+    "quote": "“Holiness wears sneakers.”",
+    "reflection": "Sanctity walks among us — in errands, in laughter, in long commutes and late nights.",
+    "commentary": "This quote reminds us that holiness isn’t distant. The sacred is stitched into daily living — we can walk faithfully in ordinary shoes."
+  },
+  {
+    "file": "080.png",
+    "quote": "“Rest is resistance.”",
+    "reflection": "To pause is to protest the pace of the world. Stillness declares trust in a God who sustains all things.",
+    "commentary": "This reflection reframes rest as spiritual strength. In a restless culture, Sabbath becomes an act of faith and freedom."
+  },
+  {
+    "file": "081.png",
+    "quote": "“Seek not escape, but encounter.”",
+    "reflection": "The pilgrim doesn’t flee — he finds. Every journey outward leads inward to God’s waiting presence.",
+    "commentary": "This line reminds us that spirituality isn’t withdrawal, but awareness. The goal is not distance from the world but deeper engagement with it."
+  },
+  {
+    "file": "082.png",
+    "quote": "“Blessed are the restless.”",
+    "reflection": "Those who wander with longing are already close to heaven. The search itself is sacred.",
+    "commentary": "This reflection teaches that holy dissatisfaction draws us onward. The yearning heart keeps faith alive and the journey honest."
+  },
+  {
+    "file": "083.png",
+    "quote": "“Pilgrims never arrive—they awaken.”",
+    "reflection": "The destination is not a place but a revelation. The road leads to awareness, not arrival.",
+    "commentary": "This line reframes the spiritual journey as awakening. Faith matures when we realize God was walking beside us all along."
+  },
+  {
+    "file": "084.png",
+    "quote": "“Grace follows the wanderer.”",
+    "reflection": "However far we roam, mercy keeps pace. The lost road is never truly lost.",
+    "commentary": "This reflection reminds us that divine love is relentless. Grace is the traveler’s shadow — constant, patient, and guiding us home."
+  },
+  {
+    "file": "085.png",
+    "quote": "“Faith is the map when the road fades.”",
+    "reflection": "When clarity fails, conviction remains. Trust charts the unseen path.",
+    "commentary": "This line encourages steadfastness in uncertainty. When direction disappears, faith itself becomes the compass pointing home."
+  },
+  {
+    "file": "086.png",
+    "quote": "“Carry the light.”",
+    "reflection": "Even a small flame changes the night. When we bear hope, the darkness can no longer reign.",
+    "commentary": "This reflection calls us to be bearers of goodness. Every act of kindness is a torch of faith, passed from one heart to another."
+  },
+  {
+    "file": "087.png",
+    "quote": "“He is found in motion.”",
+    "reflection": "God walks with the moving soul. In every forward step, grace keeps stride.",
+    "commentary": "This line reminds us that spiritual life is not stillness but growth. Faith thrives in movement — we meet God as we journey."
+  },
+  {
+    "file": "088.png",
+    "quote": "“Resting is also holy.”",
+    "reflection": "To rest is to trust that the world turns in God’s hands. Peace is not idleness but worship in stillness.",
+    "commentary": "This reflection teaches that rest honors the Creator. It acknowledges that we are held, not driven, by divine care."
+  },
+  {
+    "file": "089.png",
+    "quote": "“The sacred journey is never finished.”",
+    "reflection": "Each ending becomes another beginning. Faith keeps unfolding beyond what we see.",
+    "commentary": "This line reminds us that spiritual growth is continual — there is always more to discover of love, mercy, and truth."
+  },
+  {
+    "file": "090.png",
+    "quote": "“Worship with your footsteps.”",
+    "reflection": "Every step can be a song of praise. Movement itself becomes prayer when guided by love.",
+    "commentary": "This reflection transforms walking into worship — a reminder that devotion is not confined to temples but lived through daily action."
+  },
+  {
+    "file": "091.png",
+    "quote": "“Faith builds bridges where none exist.”",
+    "reflection": "Where division stands, belief constructs a way across. Hope engineers the impossible.",
+    "commentary": "This quote calls us to reconciliation. Faith invites creativity and courage — to connect what fear has separated."
+  },
+  {
+    "file": "092.png",
+    "quote": "“The modern saint still walks.”",
+    "reflection": "Holiness keeps pace with the present. The timeless heart beats beneath modern skin.",
+    "commentary": "This reflection celebrates contemporary sanctity. Saints are not relics of the past — they walk among us, clothed in today’s grace."
+  },
+  {
+    "file": "093.png",
+    "quote": "“Blessed are the commuters.”",
+    "reflection": "God rides the morning train, stands in the traffic, and listens amid the noise.",
+    "commentary": "This line reminds us that the divine is not distant from routine. Even in the rush, sacred presence moves beside us."
+  },
+  {
+    "file": "094.png",
+    "quote": "“Holiness is hidden in the hustle.”",
+    "reflection": "Beneath deadlines and neon lights, grace hums softly, waiting to be noticed.",
+    "commentary": "This reflection calls us to mindfulness in motion. The holy dwells not apart from our work, but within it."
+  },
+  {
+    "file": "095.png",
+    "quote": "“He who endures shall see glory.”",
+    "reflection": "Patience polishes the soul until it shines. The reward of endurance is vision.",
+    "commentary": "This line reminds us that perseverance reveals divine beauty. Glory follows those who refuse to quit the good fight."
+  },
+  {
+    "file": "096.png",
+    "quote": "“Carry peace, not perfection.”",
+    "reflection": "Peace is lighter to bear than pride. Walk gently, and grace will keep your pace.",
+    "commentary": "This reflection reminds us that faith is not about flawlessness but calmness of spirit. God delights more in peace than performance."
+  },
+  {
+    "file": "097.png",
+    "quote": "“Faith turns wandering into worship.”",
+    "reflection": "When the lost path becomes prayer, every mile is holy ground.",
+    "commentary": "This line reframes confusion as communion. The pilgrim who trusts, even in uncertainty, walks already within grace."
+  },
+  {
+    "file": "098.png",
+    "quote": "“Your road is your revelation.”",
+    "reflection": "The journey itself unveils the message — every detour another chapter in God’s teaching.",
+    "commentary": "This reflection teaches that revelation is lived, not read. Each trial and triumph reveals a facet of divine wisdom."
+  },
+  {
+    "file": "099.png",
+    "quote": "“There is no arrival, only abiding.”",
+    "reflection": "The goal of faith is not distance but dwelling — to remain in love without end.",
+    "commentary": "This line reminds us that spiritual life is not about reaching a finish line but resting continually in God’s presence."
+  },
+  {
+    "file": "100.png",
+    "quote": "“Go forth, for the world awaits the faithful.”",
+    "reflection": "The call is not to retreat but to reveal. Carry the light you’ve found into every shadow.",
+    "commentary": "This closing reflection commissions the pilgrim to mission. Faith fulfilled is faith shared — walking onward, bearing the eternal flame."
   }
 ]
