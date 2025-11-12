@@ -60,7 +60,6 @@ def save_json(path, data):
 
 # ======================================================
 # LIBRARY SELECTION
-# Each entry in assets/veni_library.json is:
 # { "file": "001.png", "quote": "...", "reflection": "...", "commentary": "..." }
 # ======================================================
 def is_recent(filename, history, days):
@@ -77,9 +76,7 @@ def is_recent(filename, history, days):
     return False
 
 def least_recent_filename(candidates, history):
-    # Returns the filename among candidates that was posted least recently (or never)
     last_used = {h["file"]: h["ts"] for h in history if "file" in h and "ts" in h}
-    # Older ISO date is "less recent". Missing => prioritize (never used)
     def score(fn):
         ts = last_used.get(fn)
         if not ts:
@@ -91,7 +88,6 @@ def least_recent_filename(candidates, history):
     return sorted(candidates, key=lambda fn: score(fn))[0]
 
 def pick_next_entry(library, history):
-    # Build list of files in numeric order
     def file_index(e):
         try:
             base = os.path.splitext(e.get("file",""))[0]
@@ -103,15 +99,12 @@ def pick_next_entry(library, history):
     if not lib_sorted:
         return None
 
-    # Eligible (>= NO_REPEAT_DAYS)
     eligible = [e for e in lib_sorted if not is_recent(e["file"], history, NO_REPEAT_DAYS)]
 
     if eligible:
-        # Random selection from eligible to avoid “always 001..100”
         random.shuffle(eligible)
         return eligible[0]
     else:
-        # All are “recent” → pick the least-recent overall
         files = [e["file"] for e in lib_sorted]
         lr = least_recent_filename(files, history)
         for e in lib_sorted:
@@ -121,6 +114,9 @@ def pick_next_entry(library, history):
 
 # ======================================================
 # TONE BUCKET DETECTION
+# 001–035 Ascetic Monk | 036–045 Disciplined Warrior
+# 046–055 Serene Mystic | 056–065 Prophetic Visionary
+# 066–100 Modern Pilgrim
 # ======================================================
 def tone_from_filename(fname: str) -> str:
     try:
@@ -189,15 +185,38 @@ def build_hashtag_line(tone_bucket: str):
     return "" if not final else " ".join(final)
 
 # ======================================================
-# IMAGE COMPOSITING
+# IMAGE SAVE (IG-safe JPEG) + OVERLAY
 # ======================================================
+def save_jpeg_ig_safe(img: Image.Image, path: str, max_side=1080, max_bytes=7_500_000):
+    # Resize to IG-recommended bound
+    w, h = img.size
+    scale = min(1.0, float(max_side) / max(w, h))
+    if scale < 1.0:
+        img = img.resize((int(w*scale), int(h*scale)), Image.LANCZOS)
+
+    # Adaptive quality loop until under size cap
+    q = 92
+    data = None
+    while q >= 70:
+        buf = BytesIO()
+        img.save(buf, "JPEG", quality=q, optimize=True, progressive=True, subsampling=2)
+        data = buf.getvalue()
+        if len(data) <= max_bytes:
+            with open(path, "wb") as f:
+                f.write(data)
+            return
+        q -= 4
+    with open(path, "wb") as f:
+        f.write(data)
+
 def overlay_logo_once(input_path: str, output_path: str, logo_path=LOGO_PATH):
     """
     If output_path exists → do nothing.
-    Else load input_path, overlay logo, save to output_path.
+    Else load input_path, overlay logo, save IG-safe JPEG to output_path.
     """
     if os.path.isfile(output_path):
         return
+
     try:
         base = Image.open(input_path).convert("RGB")
     except Exception as e:
@@ -206,16 +225,15 @@ def overlay_logo_once(input_path: str, output_path: str, logo_path=LOGO_PATH):
     try:
         logo = Image.open(logo_path).convert("RGBA")
     except Exception:
-        # No logo? just copy the base into output
-        base.save(output_path, "PNG")
+        # No logo? still write a JPEG-safe version
+        save_jpeg_ig_safe(base, output_path)
         return
 
     bw, bh = base.size
     target_w = max(1, int(bw * LOGO_WIDTH_RATIO))
     w, h = logo.size
     scale = target_w / float(w)
-    new_size = (target_w, max(1, int(h * scale)))
-    logo = logo.resize(new_size, Image.LANCZOS)
+    logo = logo.resize((target_w, max(1, int(h * scale))), Image.LANCZOS)
 
     if LOGO_OPACITY < 1.0:
         alpha = logo.split()[-1]
@@ -230,7 +248,8 @@ def overlay_logo_once(input_path: str, output_path: str, logo_path=LOGO_PATH):
     base_rgba = base.convert("RGBA")
     base_rgba.alpha_composite(logo, (x, y))
     final = base_rgba.convert("RGB")
-    final.save(output_path, "PNG")
+
+    save_jpeg_ig_safe(final, output_path)
 
 # ======================================================
 # IG STORY (Content Publishing API supports story image posting; no link sticker)
@@ -323,12 +342,12 @@ if __name__ == "__main__":
         reflection  = (entry.get("reflection") or "").strip()
         commentary  = (entry.get("commentary") or "").strip()
 
-    # 3) Cached overlay output path: out/NNN-overlay.png
+    # 3) Cached overlay output path: out/NNN-overlay.jpg
     base_name = os.path.splitext(os.path.basename(file))[0]  # 'NNN'
-    out_name  = f"{base_name}-overlay.png"
+    out_name  = f"{base_name}-overlay.jpg"
     out_path  = os.path.join(OUT_DIR, out_name)
 
-    # Create overlay once if not present
+    # Create overlay once if not present (JPEG, IG-safe)
     overlay_logo_once(src_path, out_path, LOGO_PATH)
 
     # 4) Build caption (+ hashtags)
@@ -344,7 +363,6 @@ if __name__ == "__main__":
     )
 
     # 5) Public URL for the composited image
-    #    (Your workflow must commit /out/ before calling the IG publish step if you need a URL.)
     repo = os.getenv("GITHUB_REPOSITORY", "") or "owner/repo"
     image_url = f"https://raw.githubusercontent.com/{repo}/main/{out_path.replace(os.sep, '/')}"
 
