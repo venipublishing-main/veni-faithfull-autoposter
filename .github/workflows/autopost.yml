@@ -1,36 +1,39 @@
-name: Daily Instagram Auto-Post
+name: Veni Faithful Autoposter
 
 on:
   schedule:
-    - cron: "0 8 * * *"   # daily at 08:00 UTC
+    - cron: "0 2 * * *"   # 04:00 Johannesburg (UTC+2)
+    - cron: "0 17 * * *"  # 19:00 Johannesburg (UTC+2)
   workflow_dispatch: {}
 
 permissions:
-  contents: write
+  contents: write   # allow committing /out and /state
 
 jobs:
   post:
     runs-on: ubuntu-latest
 
     env:
-      IG_TOKEN: ${{ secrets.IG_TOKEN }}
+      # Tokens & IDs
       IG_USER_ID: ${{ secrets.IG_USER_ID }}
-      POST_STORY: "true"            # set to "false" to disable
+      IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN && secrets.IG_ACCESS_TOKEN || secrets.IG_TOKEN }}
+      # post.py options
+      POST_STORY: "true"                  # set "false" to skip Story
       STORY_CAPTION: "New post is live — tap profile"
-      STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      GEMINI_MODEL: gemini-2.5-flash
-      GEMINI_MAX_TOKENS: 240
-      ATTRIBUTION_MODE: hybrid
-      BIBLE_TRANSLATION: auto
       LIBRARY_PATH: assets/veni_library.json
-      NO_REPEAT_DAYS: "21"
+      NO_REPEAT_DAYS: "30"
+      LOGO_PATH: assets/images/Logo.png
+      LOGO_WIDTH_RATIO: "0.18"
+      LOGO_MARGIN_RATIO: "0.03"
+      LOGO_OPACITY: "0.85"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -38,56 +41,74 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pillow requests numpy opencv-python-headless
+          pip install -r requirements.txt
 
-      - name: Generate image & caption payload
+      - name: Build image & caption (runs post.py)
         run: |
           python post.py
 
-      - name: Commit generated image
+      - name: Commit /out and /state (make image URL public)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add out/*.jpg post_payload.json || true
-          git commit -m "chore: add daily image $(date -u +'%Y-%m-%d')" || echo "No changes to commit"
+          git add out state post_payload.json || true
+          git commit -m "autoposter: update out/ + state/ $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes to commit"
           git push
 
-      - name: Wait for raw URL to become available
+      - name: Wait for raw image URL to be available (HTTP 200)
         run: |
-          echo "Sleeping 30s so the image is served on raw.githubusercontent.com..."
-          sleep 30
+          python - << 'PY'
+          import json, time, sys, requests
+          with open('post_payload.json','r',encoding='utf-8') as f:
+              data = json.load(f)
+          url = data['image_url']
+          ok = False
+          for i in range(12):  # try up to ~60s
+              try:
+                  r = requests.head(url, timeout=10)
+                  if r.status_code == 200:
+                      ok = True
+                      print("Image available:", url)
+                      break
+                  else:
+                      print("Status:", r.status_code, "- retrying...")
+              except Exception as e:
+                  print("HEAD error:", e)
+              time.sleep(5)
+          if not ok:
+              print("WARNING: raw URL not 200 after retries; continuing anyway.")
+          PY
 
-      - name: Publish to Instagram (create & publish)
+      - name: Publish to Instagram (feed)
         run: |
           python - << 'PY'
           import os, json, time, requests
-          IG_TOKEN = os.environ['IG_TOKEN']
-          IG_USER_ID = os.environ['IG_USER_ID']
+          IG_ACCESS_TOKEN = os.environ['IG_ACCESS_TOKEN']
+          IG_USER_ID      = os.environ['IG_USER_ID']
 
           with open('post_payload.json', 'r', encoding='utf-8') as f:
               payload = json.load(f)
-
           image_url = payload['image_url']
-          caption = payload['caption']
+          caption   = payload['caption']
 
-          # Step 1: Create container
+          # Create media container
           create_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media"
           r = requests.post(create_url, data={
               "image_url": image_url,
               "caption": caption,
-              "access_token": IG_TOKEN
-          }, timeout=30)
-          print("Create status:", r.status_code, r.text)
+              "access_token": IG_ACCESS_TOKEN
+          }, timeout=60)
+          print("Create:", r.status_code, r.text[:500])
           r.raise_for_status()
           creation_id = r.json()['id']
 
-          # Step 2: Publish post
+          # Publish media
           time.sleep(5)
           publish_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media_publish"
           r2 = requests.post(publish_url, data={
               "creation_id": creation_id,
-              "access_token": IG_TOKEN
-          }, timeout=30)
-          print("Publish status:", r2.status_code, r2.text)
+              "access_token": IG_ACCESS_TOKEN
+          }, timeout=60)
+          print("Publish:", r2.status_code, r2.text[:500])
           r2.raise_for_status()
           PY
