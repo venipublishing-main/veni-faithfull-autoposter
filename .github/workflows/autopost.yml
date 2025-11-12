@@ -16,7 +16,8 @@ jobs:
     env:
       IG_USER_ID: ${{ secrets.IG_USER_ID }}
       IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN && secrets.IG_ACCESS_TOKEN || secrets.IG_TOKEN }}
-      POST_STORY: "true"
+      # Turn OFF story inside post.py; we publish Story later once RAW URL is live
+      POST_STORY: "false"
       STORY_CAPTION: "New post is live — tap profile"
       LIBRARY_PATH: assets/veni_library.json
       NO_REPEAT_DAYS: "30"
@@ -80,7 +81,6 @@ jobs:
           with open('post_payload.json','r',encoding='utf-8') as f:
               data = json.load(f)
 
-          # Try to get overlay filename from existing image_url; fallback to deriving from 'file'; then scan out/
           overlay_name = None
           img_url = (data.get('image_url') or '').strip()
           if img_url:
@@ -101,14 +101,11 @@ jobs:
               raise SystemExit("Could not determine overlay filename.")
 
           raw_url = f"https://raw.githubusercontent.com/{REPO}/{SHA}/out/{overlay_name}"
-
-          # Write back into payload for downstream step
           data['image_url'] = raw_url
           with open('post_payload.json','w',encoding='utf-8') as f:
               json.dump(data, f, ensure_ascii=False, indent=2)
 
           print("RAW_URL:", raw_url)
-          # Expose to later steps
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
               out.write(f"RAW_URL={raw_url}\n")
           PY
@@ -177,5 +174,58 @@ jobs:
               "access_token": IG_ACCESS_TOKEN
           }, timeout=60)
           print("Publish:", r2.status_code, r2.text[:500])
+          r2.raise_for_status()
+          PY
+
+      - name: Publish to Instagram (story)
+        if: always()  # still try story even if feed already posted; you can change to "success()" if preferred
+        env:
+          IG_ACCESS_TOKEN: ${{ env.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ env.IG_USER_ID }}
+          STORY_CAPTION: ${{ env.STORY_CAPTION }}
+        run: |
+          python - << 'PY'
+          import os, json, time, requests
+
+          IG_ACCESS_TOKEN = os.environ['IG_ACCESS_TOKEN']
+          IG_USER_ID      = os.environ['IG_USER_ID']
+          STORY_CAPTION   = os.environ.get('STORY_CAPTION','')
+
+          with open('post_payload.json','r',encoding='utf-8') as f:
+              payload = json.load(f)
+          image_url = payload['image_url']
+
+          # 1) Create story media container (note: captions don't render on stories; API allows but UI hides)
+          create_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media"
+          r = requests.post(create_url, data={
+              "image_url": image_url,
+              "media_type": "STORIES",
+              "caption": STORY_CAPTION,
+              "access_token": IG_ACCESS_TOKEN
+          }, timeout=60)
+          print("Story Create:", r.status_code, r.text[:500])
+          r.raise_for_status()
+          creation_id = r.json()['id']
+
+          # 2) Poll status (optional)
+          for i in range(8):
+              s = requests.get(f"https://graph.facebook.com/v24.0/{creation_id}",
+                               params={"fields": "status", "access_token": IG_ACCESS_TOKEN},
+                               timeout=30)
+              try:
+                  s.raise_for_status()
+                  if (s.json() or {}).get('status') == 'FINISHED':
+                      break
+              except Exception:
+                  pass
+              time.sleep(1)
+
+          # 3) Publish
+          publish_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media_publish"
+          r2 = requests.post(publish_url, data={
+              "creation_id": creation_id,
+              "access_token": IG_ACCESS_TOKEN
+          }, timeout=60)
+          print("Story Publish:", r2.status_code, r2.text[:500])
           r2.raise_for_status()
           PY
