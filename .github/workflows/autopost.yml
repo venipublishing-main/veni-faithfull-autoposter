@@ -62,41 +62,75 @@ jobs:
           git commit -m "autoposter: update out/ + state/ $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes to commit"
           git push
 
-      - name: Compute public CDN URL (jsDelivr)
-        id: cdn
-        run: |
-          REPO="${{ github.repository }}"             # e.g. venipublishing-main/veni-faithfull-autoposter
-          BRANCH="${{ github.ref_name }}"             # e.g. main
-          IMG_PATH=$(jq -r '.image_url' post_payload.json | sed -E 's#^https://raw.githubusercontent.com/[^/]+/[^/]+/[^/]+/##')
-          # If image_url was already raw GH, IMG_PATH is the trailing path after /main/
-          # If for some reason it's empty, fall back to scanning out/
-          if [ -z "$IMG_PATH" ] || [ "$IMG_PATH" = "null" ]; then
-            IMG_PATH="$(ls out/*-overlay.jpg | head -n1)"
-          fi
-          # Normalize to path under repo root
-          IMG_PATH="${IMG_PATH#./}"
-          IMG_PATH="${IMG_PATH#out/}"
-          FINAL_URL="https://cdn.jsdelivr.net/gh/${REPO}@${BRANCH}/out/${IMG_PATH##*/}"
-          echo "CDN_URL=$FINAL_URL" >> $GITHUB_OUTPUT
-          echo "CDN URL: $FINAL_URL"
+      - name: Capture commit SHA
+        id: sha
+        run: echo "SHA=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Wait for CDN URL to be live
+      - name: Compute RAW GitHub URL (pinned to SHA) and patch payload
+        id: raw
+        env:
+          REPO: ${{ github.repository }}
+          SHA: ${{ steps.sha.outputs.SHA }}
         run: |
           python - << 'PY'
-          import os, json, time, requests
-          cdn_url = os.environ.get('CDN_URL')
-          if not cdn_url:
-              # pull from previous step output
-              import subprocess, sys
-              sys.exit("Missing CDN_URL env")
+          import os, json, glob, re
+          REPO = os.environ['REPO']
+          SHA  = os.environ['SHA']
 
-          # Poll for up to ~90s
+          with open('post_payload.json','r',encoding='utf-8') as f:
+              data = json.load(f)
+
+          # Try to get overlay filename from existing image_url; fallback to deriving from 'file'; then scan out/
+          overlay_name = None
+          img_url = (data.get('image_url') or '').strip()
+          if img_url:
+              overlay_name = img_url.split('/')[-1] or None
+
+          if not overlay_name:
+              file_field = (data.get('file') or '').strip()
+              if file_field:
+                  base = re.sub(r'\.[^.]+$','', os.path.basename(file_field))
+                  overlay_name = f"{base}-overlay.jpg"
+
+          if not overlay_name:
+              matches = sorted(glob.glob('out/*-overlay.jpg'))
+              if matches:
+                  overlay_name = os.path.basename(matches[0])
+
+          if not overlay_name:
+              raise SystemExit("Could not determine overlay filename.")
+
+          raw_url = f"https://raw.githubusercontent.com/{REPO}/{SHA}/out/{overlay_name}"
+
+          # Write back into payload for downstream step
+          data['image_url'] = raw_url
+          with open('post_payload.json','w',encoding='utf-8') as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+
+          print("RAW_URL:", raw_url)
+          # Expose to later steps
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f"RAW_URL={raw_url}\n")
+          PY
+
+      - name: Wait for RAW URL to be live (must be image/jpeg)
+        env:
+          RAW_URL: ${{ steps.raw.outputs.RAW_URL }}
+        run: |
+          python - << 'PY'
+          import os, time, requests
+          raw_url = os.environ.get('RAW_URL')
+          if not raw_url:
+              raise SystemExit("Missing RAW_URL env")
+
           ok = False
-          for i in range(18):
+          for i in range(24):  # ~2 minutes (24 * 5s)
               try:
-                  r = requests.get(cdn_url, timeout=10, allow_redirects=True)
-                  print(f"[{i}] {r.status_code} {r.headers.get('content-type')} {r.headers.get('content-length')}")
-                  if r.status_code == 200 and 'image/jpeg' in (r.headers.get('content-type') or '').lower():
+                  r = requests.get(raw_url, timeout=10, allow_redirects=True)
+                  ctype = (r.headers.get('content-type') or '').lower()
+                  clen  = r.headers.get('content-length')
+                  print(f"[{i}] {r.status_code} {ctype} {clen}")
+                  if r.status_code == 200 and 'image/jpeg' in ctype:
                       ok = True
                       break
               except Exception as e:
@@ -104,19 +138,13 @@ jobs:
               time.sleep(5)
 
           if not ok:
-              raise SystemExit(f"Image not publicly reachable (or wrong type): {cdn_url}")
-
-          # Patch post_payload.json to use the CDN URL for IG
-          with open('post_payload.json','r',encoding='utf-8') as f:
-              data = json.load(f)
-          data['image_url'] = cdn_url
-          with open('post_payload.json','w',encoding='utf-8') as f:
-              json.dump(data, f, ensure_ascii=False, indent=2)
+              raise SystemExit(f"Image not publicly reachable (or wrong type): {raw_url}")
           PY
-        env:
-          CDN_URL: ${{ steps.cdn.outputs.CDN_URL }}
 
       - name: Publish to Instagram (feed)
+        env:
+          IG_ACCESS_TOKEN: ${{ env.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ env.IG_USER_ID }}
         run: |
           python - << 'PY'
           import os, json, time, requests
