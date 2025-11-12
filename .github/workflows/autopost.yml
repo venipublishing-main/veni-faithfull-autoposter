@@ -78,6 +78,26 @@ jobs:
           if not ok:
               print("WARNING: raw URL not 200 after retries; continuing anyway.")
           PY
+      - name: Diagnose raw image URL
+  run: |
+    python - << 'PY'
+    import json, requests
+    with open('post_payload.json','r',encoding='utf-8') as f:
+        data = json.load(f)
+    url = data['image_url']
+    print("Testing URL:", url)
+    r = requests.get(url, timeout=20, allow_redirects=True)
+    print("Status:", r.status_code)
+    print("Final URL:", r.url)
+    print("Content-Type:", r.headers.get('content-type'))
+    print("Content-Length:", r.headers.get('content-length'))
+    if r.status_code != 200:
+        raise SystemExit("Image not publicly reachable (non-200).")
+    if "image/jpeg" not in (r.headers.get('content-type') or "").lower():
+        raise SystemExit("Not a JPEG content-type.")
+    if r.content and len(r.content) > 8_000_000:
+        raise SystemExit("Image > 8MB; IG may reject.")
+    PY
 
       - name: Publish to Instagram (feed)
         run: |
