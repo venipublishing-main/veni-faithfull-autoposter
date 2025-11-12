@@ -42,42 +42,79 @@ jobs:
           pip install -r requirements.txt
           sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Build image & caption
+      - name: Build image & caption (runs post.py)
         run: python post.py
+
+      - name: Show generated files (debug)
+        run: |
+          echo "== out/ =="
+          ls -lah out || true
+          echo "== state/ =="
+          ls -lah state || true
+          echo "== payload =="
+          cat post_payload.json
 
       - name: Commit /out and /state (make image public)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add out state post_payload.json || true
+          git add -A out state post_payload.json || true
           git commit -m "autoposter: update out/ + state/ $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes to commit"
           git push
 
-      - name: Wait for raw URL to be live
+      - name: Compute public CDN URL (jsDelivr)
+        id: cdn
         run: |
-          echo "Waiting for GitHub to serve the new file..."
-          sleep 10
+          REPO="${{ github.repository }}"             # e.g. venipublishing-main/veni-faithfull-autoposter
+          BRANCH="${{ github.ref_name }}"             # e.g. main
+          IMG_PATH=$(jq -r '.image_url' post_payload.json | sed -E 's#^https://raw.githubusercontent.com/[^/]+/[^/]+/[^/]+/##')
+          # If image_url was already raw GH, IMG_PATH is the trailing path after /main/
+          # If for some reason it's empty, fall back to scanning out/
+          if [ -z "$IMG_PATH" ] || [ "$IMG_PATH" = "null" ]; then
+            IMG_PATH="$(ls out/*-overlay.jpg | head -n1)"
+          fi
+          # Normalize to path under repo root
+          IMG_PATH="${IMG_PATH#./}"
+          IMG_PATH="${IMG_PATH#out/}"
+          FINAL_URL="https://cdn.jsdelivr.net/gh/${REPO}@${BRANCH}/out/${IMG_PATH##*/}"
+          echo "CDN_URL=$FINAL_URL" >> $GITHUB_OUTPUT
+          echo "CDN URL: $FINAL_URL"
 
-      - name: Diagnose raw image URL
+      - name: Wait for CDN URL to be live
         run: |
           python - << 'PY'
-          import json, requests
+          import os, json, time, requests
+          cdn_url = os.environ.get('CDN_URL')
+          if not cdn_url:
+              # pull from previous step output
+              import subprocess, sys
+              sys.exit("Missing CDN_URL env")
+
+          # Poll for up to ~90s
+          ok = False
+          for i in range(18):
+              try:
+                  r = requests.get(cdn_url, timeout=10, allow_redirects=True)
+                  print(f"[{i}] {r.status_code} {r.headers.get('content-type')} {r.headers.get('content-length')}")
+                  if r.status_code == 200 and 'image/jpeg' in (r.headers.get('content-type') or '').lower():
+                      ok = True
+                      break
+              except Exception as e:
+                  print("GET error:", e)
+              time.sleep(5)
+
+          if not ok:
+              raise SystemExit(f"Image not publicly reachable (or wrong type): {cdn_url}")
+
+          # Patch post_payload.json to use the CDN URL for IG
           with open('post_payload.json','r',encoding='utf-8') as f:
-            data = json.load(f)
-          url = data['image_url']
-          print("Testing URL:", url)
-          r = requests.get(url, timeout=20, allow_redirects=True)
-          print("Status:", r.status_code)
-          print("Final URL:", r.url)
-          print("Content-Type:", r.headers.get('content-type'))
-          print("Content-Length:", r.headers.get('content-length'))
-          if r.status_code != 200:
-            raise SystemExit("Image not publicly reachable (non-200).")
-          if "image/jpeg" not in (r.headers.get('content-type') or "").lower():
-            raise SystemExit("Not a JPEG content-type.")
-          if r.content and len(r.content) > 8_000_000:
-            raise SystemExit("Image > 8MB; IG may reject.")
+              data = json.load(f)
+          data['image_url'] = cdn_url
+          with open('post_payload.json','w',encoding='utf-8') as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
           PY
+        env:
+          CDN_URL: ${{ steps.cdn.outputs.CDN_URL }}
 
       - name: Publish to Instagram (feed)
         run: |
@@ -91,6 +128,9 @@ jobs:
           image_url = payload['image_url']
           caption   = payload['caption']
 
+          print("Using image_url:", image_url)
+
+          # Create media container
           create_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media"
           r = requests.post(create_url, data={
               "image_url": image_url,
@@ -101,6 +141,7 @@ jobs:
           r.raise_for_status()
           creation_id = r.json()['id']
 
+          # Publish media
           time.sleep(5)
           publish_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media_publish"
           r2 = requests.post(publish_url, data={
