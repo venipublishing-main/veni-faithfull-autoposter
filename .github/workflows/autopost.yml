@@ -1,231 +1,158 @@
-name: Veni Faithful Autoposter
+diff --git a/.github/workflows/autopost.yml b/.github/workflows/autopost.yml
+index 1111111..2222222 100644
+--- a/.github/workflows/autopost.yml
++++ b/.github/workflows/autopost.yml
+@@ -1,6 +1,6 @@
+ name: Veni Faithful Autoposter
 
-on:
-  schedule:
-    - cron: "0 2 * * *"   # 04:00 Johannesburg (UTC+2)
-    - cron: "0 17 * * *"  # 19:00 Johannesburg (UTC+2)
-  workflow_dispatch: {}
+ on:
+   schedule:
+     - cron: "0 2 * * *"   # 04:00 Johannesburg (UTC+2)
+     - cron: "0 17 * * *"  # 19:00 Johannesburg (UTC+2)
+   workflow_dispatch: {}
 
-permissions:
-  contents: write
+ permissions:
+   contents: write
 
-jobs:
-  post:
-    runs-on: ubuntu-latest
+ jobs:
+   post:
+     runs-on: ubuntu-latest
 
-    env:
-      IG_USER_ID: ${{ secrets.IG_USER_ID }}
-      IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN && secrets.IG_ACCESS_TOKEN || secrets.IG_TOKEN }}
-      # Turn OFF story inside post.py; we publish Story later once RAW URL is live
-      POST_STORY: "false"
-      STORY_CAPTION: "New post is live — tap profile"
-      LIBRARY_PATH: assets/veni_library.json
-      NO_REPEAT_DAYS: "30"
-      LOGO_PATH: assets/images/Logo.png
-      LOGO_WIDTH_RATIO: "0.18"
-      LOGO_MARGIN_RATIO: "0.03"
-      LOGO_OPACITY: "0.85"
+     env:
+       IG_USER_ID: ${{ secrets.IG_USER_ID }}
+       IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN && secrets.IG_ACCESS_TOKEN || secrets.IG_TOKEN }}
++      GH_PAT: ${{ secrets.GH_PAT }}
+       # Turn OFF story inside post.py; we publish Story later once RAW URL is live
+       POST_STORY: "false"
+       STORY_CAPTION: "New post is live — tap profile"
+       LIBRARY_PATH: assets/veni_library.json
+       NO_REPEAT_DAYS: "30"
+       LOGO_PATH: assets/images/Logo.png
+       LOGO_WIDTH_RATIO: "0.18"
+       LOGO_MARGIN_RATIO: "0.03"
+       LOGO_OPACITY: "0.85"
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+     steps:
+       - name: Checkout
+         uses: actions/checkout@v4
+         with:
+           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+       - name: Set up Python
+         uses: actions/setup-python@v5
+         with:
+           python-version: "3.11"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          sudo apt-get update && sudo apt-get install -y jq
+       - name: Install dependencies
+         run: |
+           python -m pip install --upgrade pip
+           pip install -r requirements.txt
++          pip install pynacl
+           sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Build image & caption (runs post.py)
-        run: python post.py
+       - name: Build image & caption (runs post.py)
+         run: python post.py
 
-      - name: Show generated files (debug)
-        run: |
-          echo "== out/ =="
-          ls -lah out || true
-          echo "== state/ =="
-          ls -lah state || true
-          echo "== payload =="
-          cat post_payload.json
+@@ -110,6 +111,120 @@ jobs:
+           if not ok:
+               raise SystemExit(f"Image not publicly reachable (or wrong type): {raw_url}")
+           PY
 
-      - name: Commit /out and /state (make image public)
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A out state post_payload.json || true
-          git commit -m "autoposter: update out/ + state/ $(date -u +'%Y-%m-%dT%H:%M:%SZ')" || echo "No changes to commit"
-          git push
-
-      - name: Capture commit SHA
-        id: sha
-        run: echo "SHA=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Compute RAW GitHub URL (pinned to SHA) and patch payload
-        id: raw
-        env:
-          REPO: ${{ github.repository }}
-          SHA: ${{ steps.sha.outputs.SHA }}
-        run: |
-          python - << 'PY'
-          import os, json, glob, re
-          REPO = os.environ['REPO']
-          SHA  = os.environ['SHA']
-
-          with open('post_payload.json','r',encoding='utf-8') as f:
-              data = json.load(f)
-
-          overlay_name = None
-          img_url = (data.get('image_url') or '').strip()
-          if img_url:
-              overlay_name = img_url.split('/')[-1] or None
-
-          if not overlay_name:
-              file_field = (data.get('file') or '').strip()
-              if file_field:
-                  base = re.sub(r'\.[^.]+$','', os.path.basename(file_field))
-                  overlay_name = f"{base}-overlay.jpg"
-
-          if not overlay_name:
-              matches = sorted(glob.glob('out/*-overlay.jpg'))
-              if matches:
-                  overlay_name = os.path.basename(matches[0])
-
-          if not overlay_name:
-              raise SystemExit("Could not determine overlay filename.")
-
-          raw_url = f"https://raw.githubusercontent.com/{REPO}/{SHA}/out/{overlay_name}"
-          data['image_url'] = raw_url
-          with open('post_payload.json','w',encoding='utf-8') as f:
-              json.dump(data, f, ensure_ascii=False, indent=2)
-
-          print("RAW_URL:", raw_url)
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
-              out.write(f"RAW_URL={raw_url}\n")
-          PY
-
-      - name: Wait for RAW URL to be live (must be image/jpeg)
-        env:
-          RAW_URL: ${{ steps.raw.outputs.RAW_URL }}
-        run: |
-          python - << 'PY'
-          import os, time, requests
-          raw_url = os.environ.get('RAW_URL')
-          if not raw_url:
-              raise SystemExit("Missing RAW_URL env")
-
-          ok = False
-          for i in range(24):  # ~2 minutes (24 * 5s)
-              try:
-                  r = requests.get(raw_url, timeout=10, allow_redirects=True)
-                  ctype = (r.headers.get('content-type') or '').lower()
-                  clen  = r.headers.get('content-length')
-                  print(f"[{i}] {r.status_code} {ctype} {clen}")
-                  if r.status_code == 200 and 'image/jpeg' in ctype:
-                      ok = True
-                      break
-              except Exception as e:
-                  print("GET error:", e)
-              time.sleep(5)
-
-          if not ok:
-              raise SystemExit(f"Image not publicly reachable (or wrong type): {raw_url}")
-          PY
-
-      - name: Publish to Instagram (feed)
-        env:
-          IG_ACCESS_TOKEN: ${{ env.IG_ACCESS_TOKEN }}
-          IG_USER_ID: ${{ env.IG_USER_ID }}
-        run: |
-          python - << 'PY'
-          import os, json, time, requests
-          IG_ACCESS_TOKEN = os.environ['IG_ACCESS_TOKEN']
-          IG_USER_ID      = os.environ['IG_USER_ID']
-
-          with open('post_payload.json','r',encoding='utf-8') as f:
-              payload = json.load(f)
-          image_url = payload['image_url']
-          caption   = payload['caption']
-
-          print("Using image_url:", image_url)
-
-          # Create media container
-          create_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media"
-          r = requests.post(create_url, data={
-              "image_url": image_url,
-              "caption": caption,
-              "access_token": IG_ACCESS_TOKEN
-          }, timeout=60)
-          print("Create:", r.status_code, r.text[:500])
-          r.raise_for_status()
-          creation_id = r.json()['id']
-
-          # Publish media
-          time.sleep(5)
-          publish_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media_publish"
-          r2 = requests.post(publish_url, data={
-              "creation_id": creation_id,
-              "access_token": IG_ACCESS_TOKEN
-          }, timeout=60)
-          print("Publish:", r2.status_code, r2.text[:500])
-          r2.raise_for_status()
-          PY
-
-      - name: Publish to Instagram (story)
-        if: always()  # still try story even if feed already posted; you can change to "success()" if preferred
-        env:
-          IG_ACCESS_TOKEN: ${{ env.IG_ACCESS_TOKEN }}
-          IG_USER_ID: ${{ env.IG_USER_ID }}
-          STORY_CAPTION: ${{ env.STORY_CAPTION }}
-        run: |
-          python - << 'PY'
-          import os, json, time, requests
-
-          IG_ACCESS_TOKEN = os.environ['IG_ACCESS_TOKEN']
-          IG_USER_ID      = os.environ['IG_USER_ID']
-          STORY_CAPTION   = os.environ.get('STORY_CAPTION','')
-
-          with open('post_payload.json','r',encoding='utf-8') as f:
-              payload = json.load(f)
-          image_url = payload['image_url']
-
-          # 1) Create story media container (note: captions don't render on stories; API allows but UI hides)
-          create_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media"
-          r = requests.post(create_url, data={
-              "image_url": image_url,
-              "media_type": "STORIES",
-              "caption": STORY_CAPTION,
-              "access_token": IG_ACCESS_TOKEN
-          }, timeout=60)
-          print("Story Create:", r.status_code, r.text[:500])
-          r.raise_for_status()
-          creation_id = r.json()['id']
-
-          # 2) Poll status (optional)
-          for i in range(8):
-              s = requests.get(f"https://graph.facebook.com/v24.0/{creation_id}",
-                               params={"fields": "status", "access_token": IG_ACCESS_TOKEN},
-                               timeout=30)
-              try:
-                  s.raise_for_status()
-                  if (s.json() or {}).get('status') == 'FINISHED':
-                      break
-              except Exception:
-                  pass
-              time.sleep(1)
-
-          # 3) Publish
-          publish_url = f"https://graph.facebook.com/v24.0/{IG_USER_ID}/media_publish"
-          r2 = requests.post(publish_url, data={
-              "creation_id": creation_id,
-              "access_token": IG_ACCESS_TOKEN
-          }, timeout=60)
-          print("Story Publish:", r2.status_code, r2.text[:500])
-          r2.raise_for_status()
-          PY
++      - name: Refresh IG token (roll 60 days) + update GitHub secret
++        env:
++          IG_ACCESS_TOKEN: ${{ env.IG_ACCESS_TOKEN }}
++          GH_PAT: ${{ env.GH_PAT }}
++          REPO_FULL: ${{ github.repository }}
++        run: |
++          python - << 'PY'
++          import os, sys, base64, requests
++
++          IG_ACCESS_TOKEN = os.environ.get("IG_ACCESS_TOKEN", "").strip()
++          GH_PAT          = os.environ.get("GH_PAT", "").strip()
++          REPO_FULL       = os.environ.get("REPO_FULL", "").strip()  # owner/repo
++
++          if not IG_ACCESS_TOKEN:
++              raise SystemExit("Missing IG_ACCESS_TOKEN (GitHub secret).")
++          if not GH_PAT:
++              raise SystemExit("Missing GH_PAT (GitHub secret).")
++          if "/" not in REPO_FULL:
++              raise SystemExit(f"Unexpected REPO_FULL: {REPO_FULL}")
++          owner, repo = REPO_FULL.split("/", 1)
++
++          # 1) Refresh long-lived Instagram token
++          # Meta docs: refresh_access_token (long-lived token must be >=24h old and not expired)
++          refresh_url = "https://graph.facebook.com/v24.0/refresh_access_token"
++          r = requests.get(refresh_url, params={
++              "grant_type": "ig_refresh_token",
++              "access_token": IG_ACCESS_TOKEN
++          }, timeout=60)
++
++          # Do NOT print token content
++          print("IG refresh:", r.status_code, (r.text or "")[:300])
++          if r.status_code != 200:
++              raise SystemExit(
++                  "Failed to refresh IG token. "
++                  "If the token is already expired, you must manually reseed a new long-lived token into IG_ACCESS_TOKEN."
++              )
++
++          data = r.json() or {}
++          new_token = (data.get("access_token") or "").strip()
++          expires_in = data.get("expires_in")
++          if not new_token:
++              raise SystemExit("Refresh call returned 200 but no access_token in response.")
++          print("IG token refreshed. expires_in:", expires_in)
++
++          # 2) Update GitHub Actions secret IG_ACCESS_TOKEN using REST API with Libsodium sealed box
++          # Docs: Encrypting secrets for the REST API
++          api_base = "https://api.github.com"
++          headers = {
++              "Authorization": f"Bearer {GH_PAT}",
++              "Accept": "application/vnd.github+json",
++              "X-GitHub-Api-Version": "2022-11-28",
++          }
++
++          # 2a) Get public key for secrets encryption
++          pk_url = f"{api_base}/repos/{owner}/{repo}/actions/secrets/public-key"
++          pk = requests.get(pk_url, headers=headers, timeout=60)
++          print("GH public key:", pk.status_code)
++          pk.raise_for_status()
++          pkj = pk.json() or {}
++          key_id = pkj.get("key_id")
++          key_b64 = pkj.get("key")
++          if not key_id or not key_b64:
++              raise SystemExit("Could not retrieve GitHub public key/key_id for secrets encryption.")
++
++          # Encrypt using sealed box (PyNaCl)
++          from nacl import public
++          public_key = public.PublicKey(base64.b64decode(key_b64))
++          sealed_box = public.SealedBox(public_key)
++          encrypted = sealed_box.encrypt(new_token.encode("utf-8"))
++          encrypted_b64 = base64.b64encode(encrypted).decode("utf-8")
++
++          # 2b) PUT the updated secret
++          put_url = f"{api_base}/repos/{owner}/{repo}/actions/secrets/IG_ACCESS_TOKEN"
++          put = requests.put(put_url, headers=headers, json={
++              "encrypted_value": encrypted_b64,
++              "key_id": key_id
++          }, timeout=60)
++          print("GH secret update:", put.status_code, (put.text or "")[:200])
++          put.raise_for_status()
++
++          # 3) Export token to subsequent steps in THIS run
++          # (GITHUB_ENV is the correct way to update env vars for later steps)
++          github_env = os.environ.get("GITHUB_ENV")
++          if github_env:
++              with open(github_env, "a", encoding="utf-8") as f:
++                  f.write(f"IG_ACCESS_TOKEN={new_token}\n")
++          print("IG_ACCESS_TOKEN updated for this run + saved to repo secrets.")
++          PY
++
+       - name: Publish to Instagram (feed)
+         env:
+           IG_ACCESS_TOKEN: ${{ env.IG_ACCESS_TOKEN }}
+           IG_USER_ID: ${{ env.IG_USER_ID }}
+         run: |
+           python - << 'PY'
+           import os, json, time, requests
+           IG_ACCESS_TOKEN = os.environ['IG_ACCESS_TOKEN']
+           IG_USER_ID      = os.environ['IG_USER_ID']
